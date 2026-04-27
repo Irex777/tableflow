@@ -18,8 +18,22 @@ export class MorePanel {
   openSubtab(name) {
     document.querySelectorAll('.subtab-content').forEach(s => s.style.display = 'none');
     document.querySelectorAll('.more-card').forEach(c => c.classList.remove('active'));
+    // Hide the cards grid when a subtab is open
+    document.querySelector('.more-grid').style.display = 'none';
+    // Show back button in the active subtab
     const el = document.getElementById(`subtab${name.charAt(0).toUpperCase() + name.slice(1)}`);
-    if (el) el.style.display = 'block';
+    if (el) {
+      el.style.display = 'block';
+      // Prepend back button if not already present
+      if (!el.querySelector('.subtab-back')) {
+        el.insertAdjacentHTML('afterbegin', '<button class="subtab-back" style="background:none;border:none;color:var(--primary);font-size:14px;padding:8px 0;cursor:pointer;margin-bottom:8px">← Back</button>');
+        el.querySelector('.subtab-back').addEventListener('click', () => {
+          el.style.display = 'none';
+          document.querySelector('.more-grid').style.display = '';
+          this.activeSubtab = null;
+        });
+      }
+    }
     this.activeSubtab = name;
 
     switch (name) {
@@ -157,7 +171,7 @@ export class MorePanel {
         <textarea id="resNotes" placeholder="Notes" rows="2" style="padding:12px;background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:var(--radius);resize:none"></textarea>
         <div style="display:flex;gap:8px">
           <button class="btn-primary" id="submitRes">Create Reservation</button>
-          <button class="btn-danger" style="padding:12px" onclick="location.reload()">Cancel</button>
+          <button class="btn-secondary" style="padding:12px" id="cancelRes">Cancel</button>
         </div>
       </div>
     `;
@@ -181,6 +195,10 @@ export class MorePanel {
       } catch (err) {
         showToast(err.message, 'error');
       }
+    });
+
+    document.getElementById('cancelRes')?.addEventListener('click', () => {
+      this.loadReservations();
     });
   }
 

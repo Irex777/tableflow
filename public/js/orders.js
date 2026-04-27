@@ -76,6 +76,8 @@ export class OrdersPanel {
     const order = orders.find(o => o.id === orderId);
     if (order) {
       window.APP.openOrder = order;
+      // Also refresh the orders list
+      window.APP.orders = await api('/orders?status=open,fired');
     }
   }
 
