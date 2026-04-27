@@ -72,6 +72,21 @@ app.use((req, res, next) => {
   if (!req.session.user) return res.redirect('/login');
   next();
 });
+// Serve index.html with cache-busting (before static to take priority)
+const APP_VERSION = Date.now().toString(36);
+const fs = require('fs');
+const indexHtml = fs.readFileSync(path.join(__dirname, 'public', 'index.html'), 'utf8')
+  .replace('src="/js/app.js"', `src="/js/app.js?v=${APP_VERSION}"`);
+
+function sendIndex(req, res) {
+  res.setHeader('Cache-Control', 'no-store');
+  res.send(indexHtml);
+}
+app.get('/', (req, res) => {
+  if (!req.session.user) return res.redirect('/login');
+  sendIndex(req, res);
+});
+
 app.use(express.static(path.join(__dirname, 'public'), {
   setHeaders: (res, filePath) => {
     if (filePath.endsWith('.js') || filePath.endsWith('.css') || filePath.endsWith('.html')) {
@@ -80,16 +95,11 @@ app.use(express.static(path.join(__dirname, 'public'), {
   }
 }));
 
-// SPA fallback — inject version hash for cache busting
-const APP_VERSION = Date.now().toString(36);
+// SPA fallback
 app.get('*', (req, res) => {
   if (req.path.startsWith('/api/')) return res.status(404).json({ error: 'Not found' });
   if (!req.session.user) return res.redirect('/login');
-  const fs = require('fs');
-  let html = fs.readFileSync(path.join(__dirname, 'public', 'index.html'), 'utf8');
-  html = html.replace('src="/js/app.js"', `src="/js/app.js?v=${APP_VERSION}"`);
-  res.setHeader('Cache-Control', 'no-store');
-  res.send(html);
+  sendIndex(req, res);
 });
 
 // Start
