@@ -72,13 +72,24 @@ app.use((req, res, next) => {
   if (!req.session.user) return res.redirect('/login');
   next();
 });
-app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.static(path.join(__dirname, 'public'), {
+  setHeaders: (res, filePath) => {
+    if (filePath.endsWith('.js') || filePath.endsWith('.css') || filePath.endsWith('.html')) {
+      res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+    }
+  }
+}));
 
-// SPA fallback
+// SPA fallback — inject version hash for cache busting
+const APP_VERSION = Date.now().toString(36);
 app.get('*', (req, res) => {
   if (req.path.startsWith('/api/')) return res.status(404).json({ error: 'Not found' });
   if (!req.session.user) return res.redirect('/login');
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+  const fs = require('fs');
+  let html = fs.readFileSync(path.join(__dirname, 'public', 'index.html'), 'utf8');
+  html = html.replace('src="/js/app.js"', `src="/js/app.js?v=${APP_VERSION}"`);
+  res.setHeader('Cache-Control', 'no-store');
+  res.send(html);
 });
 
 // Start
