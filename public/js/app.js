@@ -135,6 +135,11 @@ function switchTab(tab) {
   document.querySelectorAll('.nav-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
   document.querySelectorAll('.tab-content').forEach(t => t.classList.toggle('active', t.id === `tab${tab}`));
 
+  // Show floor-plan controls only on Floor tab
+  const isFloor = tab === 'Floor';
+  document.getElementById('statusBar').querySelector('.status-filters').style.display = isFloor ? '' : 'none';
+  document.getElementById('sectionTabs').style.display = isFloor ? '' : 'none';
+
   if (tab === 'Floor' && floorPlan) floorPlan.render();
   if (tab === 'Orders' && ordersPanel) ordersPanel.render();
   if (tab === 'Menu' && menuPanel) menuPanel.render();

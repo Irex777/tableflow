@@ -29,13 +29,9 @@ module.exports = (db, broadcast) => {
       if (o.fired_at) {
         o.fired_minutes_ago = Math.round((Date.now() - new Date(o.fired_at).getTime()) / 60000);
       }
-      // Only include orders that have items to prepare
-      if (o.items.length === 0) {
-        orders.splice(orders.indexOf(o), 1);
-      }
     }
 
-    res.json(orders.filter(o => o.items.length > 0));
+    res.json(orders.filter(o => o.items && o.items.length > 0));
   });
 
   // POST bump item (mark ready)
