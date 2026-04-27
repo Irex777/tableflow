@@ -20,12 +20,14 @@ export class MorePanel {
     document.querySelectorAll('.more-card').forEach(c => c.classList.remove('active'));
     // Hide the cards grid when a subtab is open
     document.querySelector('.more-grid').style.display = 'none';
-    // Show back button in the active subtab
+    this.activeSubtab = name;
+
     const el = document.getElementById(`subtab${name.charAt(0).toUpperCase() + name.slice(1)}`);
-    if (el) {
-      el.style.display = 'block';
-      // Prepend back button if not already present
-      if (!el.querySelector('.subtab-back')) {
+    if (el) el.style.display = 'block';
+
+    // Add back button after content loads
+    const addBackBtn = () => {
+      if (el && !el.querySelector('.subtab-back')) {
         el.insertAdjacentHTML('afterbegin', '<button class="subtab-back" style="background:none;border:none;color:var(--primary);font-size:14px;padding:8px 0;cursor:pointer;margin-bottom:8px">← Back</button>');
         el.querySelector('.subtab-back').addEventListener('click', () => {
           el.style.display = 'none';
@@ -33,16 +35,15 @@ export class MorePanel {
           this.activeSubtab = null;
         });
       }
-    }
-    this.activeSubtab = name;
+    };
 
     switch (name) {
-      case 'analytics': this.loadAnalytics(); break;
-      case 'reservations': this.loadReservations(); break;
-      case 'waitlist': this.loadWaitlist(); break;
-      case 'menuManage': this.loadMenuManage(); break;
-      case 'staff': this.loadStaffManage(); break;
-      case 'settings': this.loadSettings(); break;
+      case 'analytics': this.loadAnalytics().then(addBackBtn); break;
+      case 'reservations': this.loadReservations().then(addBackBtn); break;
+      case 'waitlist': this.loadWaitlist().then(addBackBtn); break;
+      case 'menuManage': this.loadMenuManage().then(addBackBtn); break;
+      case 'staff': this.loadStaffManage().then(addBackBtn); break;
+      case 'settings': this.loadSettings().then(addBackBtn); break;
     }
   }
 
