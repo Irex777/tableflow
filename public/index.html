@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>TableFlow POS</title>
+<link rel="stylesheet" href="/css/style.css">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+</head>
+<body>
+  <!-- Header -->
+  <header id="header">
+    <div class="header-left">
+      <span class="logo">🍽️ TableFlow</span>
+      <span id="connectionStatus" class="ws-status ws-connected" title="WebSocket">●</span>
+    </div>
+    <div class="header-center">
+      <span id="currentTime"></span>
+    </div>
+    <div class="header-right">
+      <span id="currentUser"></span>
+      <button id="logoutBtn" class="btn-icon" title="Logout">⏻</button>
+    </div>
+  </header>
+
+  <!-- Status Bar -->
+  <div id="statusBar">
+    <div class="status-summary">
+      <span id="statusOccupied">0 occupied</span>
+      <span class="sep">|</span>
+      <span id="statusAvailable">0 available</span>
+      <span class="sep">|</span>
+      <span id="statusRevenue">€0 today</span>
+    </div>
+    <div class="status-filters">
+      <button class="filter-btn active" data-filter="all">All</button>
+      <button class="filter-btn" data-filter="available">🟢 Free</button>
+      <button class="filter-btn" data-filter="occupied">🔴 Busy</button>
+      <button class="filter-btn" data-filter="reserved">🔵 Reserved</button>
+    </div>
+  </div>
+
+  <!-- Section Tabs -->
+  <div id="sectionTabs">
+    <button class="section-tab active" data-section="all">All Sections</button>
+  </div>
+
+  <!-- Main Content Area -->
+  <main id="mainContent">
+    <!-- Floor Plan Tab -->
+    <div id="tabFloor" class="tab-content active">
+      <div id="floorPlanContainer">
+        <canvas id="floorCanvas"></canvas>
+      </div>
+      <div id="floorToolbar">
+        <button id="editModeBtn" class="tool-btn">✏️ Edit</button>
+        <button id="addTableBtn" class="tool-btn" style="display:none">+ Table</button>
+        <button id="zoomInBtn" class="tool-btn">🔍+</button>
+        <button id="zoomOutBtn" class="tool-btn">🔍-</button>
+        <button id="zoomResetBtn" class="tool-btn">⟲</button>
+      </div>
+    </div>
+
+    <!-- Orders Tab -->
+    <div id="tabOrders" class="tab-content">
+      <div id="ordersList" class="orders-grid"></div>
+    </div>
+
+    <!-- Menu Tab -->
+    <div id="tabMenu" class="tab-content">
+      <div id="menuCategories" class="menu-cat-grid"></div>
+      <div id="menuItems" class="menu-items-grid"></div>
+    </div>
+
+    <!-- Kitchen Tab (KDS) -->
+    <div id="tabKitchen" class="tab-content">
+      <div id="kdsHeader">
+        <span>Kitchen Display</span>
+        <span id="kdsCount">0 orders</span>
+      </div>
+      <div id="kdsBoard" class="kds-board"></div>
+    </div>
+
+    <!-- More Tab -->
+    <div id="tabMore" class="tab-content">
+      <div class="more-grid">
+        <button class="more-card" data-subtab="analytics">📊 Analytics</button>
+        <button class="more-card" data-subtab="reservations">📅 Reservations</button>
+        <button class="more-card" data-subtab="waitlist">⏳ Waitlist</button>
+        <button class="more-card" data-subtab="menuManage">📋 Menu Mgmt</button>
+        <button class="more-card" data-subtab="staff">👥 Staff</button>
+        <button class="more-card" data-subtab="settings">⚙️ Settings</button>
+      </div>
+
+      <!-- Sub-tabs -->
+      <div id="subtabAnalytics" class="subtab-content" style="display:none"></div>
+      <div id="subtabReservations" class="subtab-content" style="display:none"></div>
+      <div id="subtabWaitlist" class="subtab-content" style="display:none"></div>
+      <div id="subtabMenuManage" class="subtab-content" style="display:none"></div>
+      <div id="subtabStaff" class="subtab-content" style="display:none"></div>
+      <div id="subtabSettings" class="subtab-content" style="display:none"></div>
+    </div>
+  </main>
+
+  <!-- Order Panel (slide-up) -->
+  <div id="orderPanel" class="panel-overlay" style="display:none">
+    <div class="panel-backdrop" id="orderPanelBackdrop"></div>
+    <div class="panel-sheet" id="orderSheet">
+      <div class="panel-handle"><div class="handle-bar"></div></div>
+      <div id="orderPanelContent"></div>
+    </div>
+  </div>
+
+  <!-- Payment Modal -->
+  <div id="paymentModal" class="modal-overlay" style="display:none">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>Payment</h3>
+        <button class="modal-close" id="paymentModalClose">&times;</button>
+      </div>
+      <div id="paymentModalBody"></div>
+    </div>
+  </div>
+
+  <!-- Bottom Navigation -->
+  <nav id="bottomNav">
+    <button class="nav-btn active" data-tab="Floor">
+      <span class="nav-icon">🏠</span>
+      <span class="nav-label">Floor</span>
+    </button>
+    <button class="nav-btn" data-tab="Orders">
+      <span class="nav-icon">📋</span>
+      <span class="nav-label">Orders</span>
+    </button>
+    <button class="nav-btn" data-tab="Menu">
+      <span class="nav-icon">🍽️</span>
+      <span class="nav-label">Menu</span>
+    </button>
+    <button class="nav-btn" data-tab="Kitchen">
+      <span class="nav-icon">🍳</span>
+      <span class="nav-label">Kitchen</span>
+    </button>
+    <button class="nav-btn" data-tab="More">
+      <span class="nav-icon">⋯</span>
+      <span class="nav-label">More</span>
+    </button>
+  </nav>
+
+  <!-- Toast notifications -->
+  <div id="toastContainer"></div>
+
+  <script type="module" src="/js/app.js"></script>
+</body>
+</html>
