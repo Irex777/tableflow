@@ -38,7 +38,7 @@ module.exports = (db, broadcast) => {
   router.post('/kds/bump/:itemId', (req, res) => {
     const item = db.prepare('SELECT * FROM order_items WHERE id = ?').get(req.params.itemId);
     if (!item) return res.status(404).json({ error: 'Item not found' });
-    if (item.status !== 'fired') return res.status(400).json({ error: 'Item not in fired state' });
+    if (!['fired', 'pending'].includes(item.status)) return res.status(400).json({ error: 'Item already ready' });
 
     db.prepare("UPDATE order_items SET status='ready', served_at=CURRENT_TIMESTAMP WHERE id=?").run(req.params.itemId);
 
