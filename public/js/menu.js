@@ -1,4 +1,4 @@
-import { api, showToast, formatCurrency } from './utils.js';
+import { api, showToast, formatCurrency, emojiToLucide } from './utils.js';
 
 export class MenuPanel {
   constructor() {
@@ -13,7 +13,7 @@ export class MenuPanel {
     if (!this.activeCat && cats.length) this.activeCat = cats[0].id;
 
     catContainer.innerHTML = cats.map(c => `
-      <button class="menu-cat-btn ${this.activeCat === c.id ? 'active' : ''}" data-cat="${c.id}">${c.icon} ${c.name}</button>
+      <button class="menu-cat-btn ${this.activeCat === c.id ? 'active' : ''}" data-cat="${c.id}">${emojiToLucide(c.icon)} ${c.name}</button>
     `).join('');
 
     const items = window.APP.items.filter(i => i.category_id === this.activeCat && i.active);
@@ -24,6 +24,8 @@ export class MenuPanel {
         ${item.is_86d ? '<span style="font-size:11px;color:var(--danger)">86\'d</span>' : ''}
       </button>
     `).join('') || '<div style="padding:40px;text-align:center;color:var(--text3)">Select a category</div>';
+
+    if (typeof lucide !== 'undefined') lucide.createIcons();
 
     // Events
     catContainer.querySelectorAll('.menu-cat-btn').forEach(btn => {

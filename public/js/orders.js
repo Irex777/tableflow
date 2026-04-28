@@ -1,4 +1,4 @@
-import { api, showToast, formatCurrency, formatTime, timeAgo, statusColor, statusLabel } from './utils.js';
+import { api, showToast, formatCurrency, formatTime, timeAgo, statusColor, statusLabel, emojiToLucide } from './utils.js';
 
 export class OrdersPanel {
   constructor() {
@@ -10,7 +10,8 @@ export class OrdersPanel {
     const orders = window.APP.orders.filter(o => o.status === 'open' || o.status === 'fired');
 
     if (!orders.length) {
-      container.innerHTML = '<div style="text-align:center;padding:60px;color:var(--text3)"><div style="font-size:48px;margin-bottom:16px">📋</div>No active orders<br><span style="font-size:13px">Tap a table on the floor plan to create one</span></div>';
+      container.innerHTML = '<div style="text-align:center;padding:60px;color:var(--text3)"><div style="font-size:48px;margin-bottom:16px"><i data-lucide="clipboard-list" style="width:48px;height:48px"></i></div>No active orders<br><span style="font-size:13px">Tap a table on the floor plan to create one</span></div>';
+      if (typeof lucide !== 'undefined') lucide.createIcons();
       return;
     }
 
@@ -35,6 +36,8 @@ export class OrdersPanel {
         </div>
       </div>
     `).join('');
+
+    if (typeof lucide !== 'undefined') lucide.createIcons();
 
     container.querySelectorAll('.order-card').forEach(card => {
       card.addEventListener('click', () => {
@@ -123,13 +126,13 @@ export class OrdersPanel {
           <span class="order-status-badge status-${order.status}" style="background:${statusColor(order.status)}20;color:${statusColor(order.status)}">${statusLabel(order.status)}</span>
           <span class="order-timer">${timeAgo(order.opened_at)}</span>
         </div>
-        <button class="order-close-btn" id="closeOrderPanel">&times;</button>
+        <button class="order-close-btn" id="closeOrderPanel"><i data-lucide="x" style="width:20px;height:20px"></i></button>
       </div>
 
       <!-- Seats -->
       <div class="order-seats">
         ${Array.from({ length: seatCount }, (_, i) => `
-          <button class="seat-btn ${window.APP.currentSeat === i + 1 ? 'active' : ''}" data-seat="${i + 1}">Seat ${i + 1}</button>
+          <button class="seat-btn ${window.APP.currentSeat === i + 1 ? 'active' : ''}" data-seat="${i + 1}"><i data-lucide="armchair" style="width:12px;height:12px;vertical-align:middle"></i> Seat ${i + 1}</button>
         `).join('')}
       </div>
 
@@ -153,17 +156,17 @@ export class OrdersPanel {
                 <div class="order-item-details">
                   <div class="order-item-name">${item.quantity}× ${item.item_name}</div>
                   ${item.modifiers_text ? `<div class="order-item-mods">${item.modifiers_text}</div>` : ''}
-                  ${item.notes ? `<div class="order-item-mods">📝 ${item.notes}</div>` : ''}
+                  ${item.notes ? `<div class="order-item-mods"><i data-lucide="pencil-line" style="width:12px;height:12px;vertical-align:middle"></i> ${item.notes}</div>` : ''}
                 </div>
                 <span class="order-item-price">${formatCurrency(item.quantity * item.unit_price)}</span>
-                ${item.status === 'pending' ? `<button class="order-item-void" data-void="${item.id}">✕</button>` : ''}
+                ${item.status === 'pending' ? `<button class="order-item-void" data-void="${item.id}"><i data-lucide="x" style="width:14px;height:14px"></i></button>` : ''}
               </div>
             `).join('')}
           ` : `
             <!-- Add Items Mode -->
             <div class="order-cats-row">
               ${window.APP.categories.map(c => `
-                <button class="order-cat-btn ${activeCat === c.id ? 'active' : ''}" data-cat="${c.id}">${c.icon} ${c.name}</button>
+                <button class="order-cat-btn ${activeCat === c.id ? 'active' : ''}" data-cat="${c.id}">${emojiToLucide(c.icon)} ${c.name}</button>
               `).join('')}
             </div>
             <div class="order-items-add">
@@ -194,17 +197,18 @@ export class OrdersPanel {
 
           <div class="order-actions">
             ${!this.showAddItems ? `
-              <button class="order-action-btn btn-add" id="toggleAddItems">+ Add Items</button>
-              ${pending.length > 0 ? `<button class="order-action-btn btn-fire" id="fireOrder">🔥 Fire (${pending.length})</button>` : ''}
-              <button class="order-action-btn btn-pay" id="payOrder">💳 Pay</button>
+              <button class="order-action-btn btn-add" id="toggleAddItems"><i data-lucide="plus" style="width:16px;height:16px;vertical-align:middle"></i> Add Items</button>
+              ${pending.length > 0 ? `<button class="order-action-btn btn-fire" id="fireOrder"><i data-lucide="flame" style="width:16px;height:16px;vertical-align:middle"></i> Fire (${pending.length})</button>` : ''}
+              <button class="order-action-btn btn-pay" id="payOrder"><i data-lucide="credit-card" style="width:16px;height:16px;vertical-align:middle"></i> Pay</button>
             ` : `
-              <button class="order-action-btn" id="toggleAddItems" style="background:var(--surface3);color:var(--text)">✕ Done</button>
+              <button class="order-action-btn" id="toggleAddItems" style="background:var(--surface3);color:var(--text)"><i data-lucide="x" style="width:16px;height:16px;vertical-align:middle"></i> Done</button>
             `}
           </div>
         </div>
       </div>
     `;
 
+    if (typeof lucide !== 'undefined') lucide.createIcons();
     this.bindOrderEvents();
   }
 
@@ -296,7 +300,7 @@ export class OrdersPanel {
         await api(`/orders/${window.APP.openOrder.id}/fire`, { method: 'POST' });
         await this.reloadOrder();
         this.renderOrderPanel();
-        showToast('Order fired to kitchen! 🔥', 'success');
+        showToast('Order fired to kitchen! <i data-lucide="flame" style="width:14px;height:14px;vertical-align:middle"></i>', 'success');
       } catch (err) {
         showToast(err.message, 'error');
       }
@@ -323,9 +327,9 @@ export class OrdersPanel {
       </div>
       <div id="splitContent"></div>
       <div class="payment-methods">
-        <button class="pay-method-btn active" data-method="cash">💵 Cash</button>
-        <button class="pay-method-btn" data-method="card">💳 Card</button>
-        <button class="pay-method-btn" data-method="mobile">📱 Mobile</button>
+        <button class="pay-method-btn active" data-method="cash"><i data-lucide="banknote" style="width:16px;height:16px;vertical-align:middle"></i> Cash</button>
+        <button class="pay-method-btn" data-method="card"><i data-lucide="credit-card" style="width:16px;height:16px;vertical-align:middle"></i> Card</button>
+        <button class="pay-method-btn" data-method="mobile"><i data-lucide="smartphone" style="width:16px;height:16px;vertical-align:middle"></i> Mobile</button>
       </div>
       <div class="payment-quick">
         <button class="payment-quick-btn" data-amount="${remaining.toFixed(2)}">Exact</button>
@@ -339,6 +343,8 @@ export class OrdersPanel {
         <button class="payment-confirm-btn" id="confirmPayment">Confirm Payment</button>
       </div>
     `;
+
+    if (typeof lucide !== 'undefined') lucide.createIcons();
 
     let selectedMethod = 'cash';
     let selectedSplit = 'full';
@@ -391,7 +397,7 @@ export class OrdersPanel {
         await this.reloadOrder();
         if (result.auto_closed) {
           this.closeOrderPanel();
-          showToast('Order completed! ✅', 'success');
+          showToast('Order completed! <i data-lucide="check-circle" style="width:14px;height:14px;vertical-align:middle"></i>', 'success');
         } else {
           this.renderOrderPanel();
         }

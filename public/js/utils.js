@@ -31,8 +31,9 @@ export function showToast(message, type = 'info') {
   const container = document.getElementById('toastContainer');
   const toast = document.createElement('div');
   toast.className = `toast ${type}`;
-  toast.textContent = message;
+  toast.innerHTML = message;
   container.appendChild(toast);
+  if (typeof lucide !== 'undefined') lucide.createIcons();
   setTimeout(() => toast.remove(), 3000);
 }
 
@@ -52,13 +53,13 @@ export async function api(path, options = {}) {
 
 export function statusColor(status) {
   const colors = {
-    available: '#22c55e',
-    occupied: '#ef4444',
-    reserved: '#3b82f6',
-    dirty: '#f59e0b',
-    blocked: '#52525b',
+    available: '#5CB85C',
+    occupied: '#D9534F',
+    reserved: '#5BC0DE',
+    dirty: '#E8A838',
+    blocked: '#6B6459',
   };
-  return colors[status] || '#52525b';
+  return colors[status] || '#6B6459';
 }
 
 export function statusLabel(status) {
@@ -85,4 +86,47 @@ export function debounce(fn, ms = 200) {
     clearTimeout(timer);
     timer = setTimeout(() => fn(...args), ms);
   };
+}
+
+export function emojiToLucide(emoji) {
+  const map = {
+    '🍽️': 'utensils-crossed',
+    '🍽': 'utensils-crossed',
+    '🏠': 'layout-grid',
+    '📋': 'clipboard-list',
+    '🍳': 'chef-hat',
+    '📊': 'bar-chart-3',
+    '📅': 'calendar',
+    '⏳': 'clock',
+    '👥': 'users',
+    '⚙️': 'settings',
+    '⚙': 'settings',
+    '🔥': 'flame',
+    '💳': 'credit-card',
+    '✅': 'check-circle',
+    '❌': 'x-circle',
+    '➕': 'plus',
+    '🪑': 'armchair',
+    '🍴': 'utensils',
+    '💰': 'banknote',
+    '📱': 'smartphone',
+    '🧾': 'receipt',
+    '🍷': 'wine',
+    '🍺': 'beer',
+    '🥗': 'salad',
+    '🥩': 'beef',
+    '🍰': 'cake-slice',
+    '☕': 'coffee',
+    '🥤': 'cup-soda',
+    '🍕': 'pizza',
+    '🍔': 'beef',
+    '🌮': 'taco',
+    '✏️': 'pencil',
+    '✏': 'pencil',
+    '🔄': 'refresh-cw',
+    '📝': 'pencil-line',
+    '💵': 'banknote',
+  };
+  const name = map[emoji?.trim()];
+  return name ? `<i data-lucide="${name}"></i>` : (emoji || '');
 }

@@ -1,4 +1,4 @@
-import { formatCurrency, formatTime, showToast, api, statusColor, timeAgo } from './utils.js';
+import { formatCurrency, formatTime, showToast, api, statusColor, timeAgo, emojiToLucide } from './utils.js';
 import { FloorPlan } from './floorplan.js';
 import { OrdersPanel } from './orders.js';
 import { MenuPanel } from './menu.js';
@@ -176,9 +176,10 @@ function renderSectionTabs() {
   const sections = window.APP.sections;
   let html = `<button class="section-tab ${window.APP.activeSection === 'all' ? 'active' : ''}" data-section="all">All Sections</button>`;
   for (const s of sections) {
-    html += `<button class="section-tab ${window.APP.activeSection == s.id ? 'active' : ''}" data-section="${s.id}">${s.icon} ${s.name}</button>`;
+    html += `<button class="section-tab ${window.APP.activeSection == s.id ? 'active' : ''}" data-section="${s.id}">${emojiToLucide(s.icon)} ${s.name}</button>`;
   }
   container.innerHTML = html;
+  if (typeof lucide !== 'undefined') lucide.createIcons();
 }
 
 // --- Status Bar ---

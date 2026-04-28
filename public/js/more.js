@@ -1,4 +1,4 @@
-import { api, showToast, formatCurrency, formatTime, formatDateTime, timeAgo, statusLabel } from './utils.js';
+import { api, showToast, formatCurrency, formatTime, formatDateTime, timeAgo, statusLabel, emojiToLucide } from './utils.js';
 
 export class MorePanel {
   constructor() {
@@ -28,12 +28,13 @@ export class MorePanel {
     // Add back button after content loads
     const addBackBtn = () => {
       if (el && !el.querySelector('.subtab-back')) {
-        el.insertAdjacentHTML('afterbegin', '<button class="subtab-back" style="background:none;border:none;color:var(--primary);font-size:14px;padding:8px 0;cursor:pointer;margin-bottom:8px">← Back</button>');
+        el.insertAdjacentHTML('afterbegin', '<button class="subtab-back" style="background:none;border:none;color:var(--primary);font-size:14px;padding:8px 0;cursor:pointer;margin-bottom:8px;display:flex;align-items:center;gap:4px"><i data-lucide="arrow-left" style="width:16px;height:16px"></i> Back</button>');
         el.querySelector('.subtab-back').addEventListener('click', () => {
           el.style.display = 'none';
           document.querySelector('.more-grid').style.display = '';
           this.activeSubtab = null;
         });
+        if (typeof lucide !== 'undefined') lucide.createIcons();
       }
     };
 
@@ -91,7 +92,7 @@ export class MorePanel {
         <h3 style="margin-bottom:12px;font-size:15px">Hourly Breakdown</h3>
         <div style="display:flex;align-items:flex-end;gap:4px;height:100px">
           ${(hourly || []).map(h => `
-            <div style="flex:1;background:var(--primary);border-radius:2px 2px 0 0;height:${Math.max(2, h.order_count * 10)}px;min-height:2px"
+            <div style="flex:1;background:#D4A843;border-radius:2px 2px 0 0;height:${Math.max(2, h.order_count * 10)}px;min-height:2px"
               title="${h.hour}:00 — ${h.order_count} orders"></div>
           `).join('')}
         </div>
@@ -101,6 +102,7 @@ export class MorePanel {
           `).join('')}
         </div>
       `;
+      if (typeof lucide !== 'undefined') lucide.createIcons();
     } catch (err) {
       showToast('Failed to load analytics', 'error');
     }
@@ -116,7 +118,7 @@ export class MorePanel {
       el.innerHTML = `
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
           <h3>Today's Reservations</h3>
-          <button class="btn-primary" id="addReservation">+ New</button>
+          <button class="btn-primary" id="addReservation"><i data-lucide="plus" style="width:14px;height:14px;vertical-align:middle"></i> New</button>
         </div>
         <div class="reservation-list">
           ${reservations.length === 0 ? '<div style="text-align:center;color:var(--text3);padding:30px">No reservations today</div>' : ''}
@@ -135,6 +137,7 @@ export class MorePanel {
           `).join('')}
         </div>
       `;
+      if (typeof lucide !== 'undefined') lucide.createIcons();
 
       document.getElementById('addReservation')?.addEventListener('click', () => this.showReservationForm());
       el.querySelectorAll('[data-seat-res]').forEach(btn => {
@@ -176,6 +179,7 @@ export class MorePanel {
         </div>
       </div>
     `;
+    if (typeof lucide !== 'undefined') lucide.createIcons();
 
     document.getElementById('submitRes')?.addEventListener('click', async () => {
       try {
@@ -212,7 +216,7 @@ export class MorePanel {
       el.innerHTML = `
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
           <h3>Waitlist</h3>
-          <button class="btn-primary" id="addWaitlist">+ Add Guest</button>
+          <button class="btn-primary" id="addWaitlist"><i data-lucide="plus" style="width:14px;height:14px;vertical-align:middle"></i> Add Guest</button>
         </div>
         ${list.length === 0 ? '<div style="text-align:center;color:var(--text3);padding:30px">No one waiting</div>' : ''}
         ${list.map(w => `
@@ -231,6 +235,7 @@ export class MorePanel {
           </div>
         `).join('')}
       `;
+      if (typeof lucide !== 'undefined') lucide.createIcons();
 
       document.getElementById('addWaitlist')?.addEventListener('click', () => {
         const name = prompt('Guest name:');
@@ -270,7 +275,7 @@ export class MorePanel {
     el.innerHTML = `
       <h3 style="margin-bottom:12px">Categories</h3>
       <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:20px">
-        ${cats.map(c => `<span style="background:var(--surface2);border:1px solid var(--border);padding:8px 14px;border-radius:var(--radius);cursor:pointer">${c.icon} ${c.name} (${c.item_count || 0})</span>`).join('')}
+        ${cats.map(c => `<span style="background:var(--surface2);border:1px solid var(--border);padding:8px 14px;border-radius:var(--radius);cursor:pointer;display:flex;align-items:center;gap:4px">${emojiToLucide(c.icon)} ${c.name} (${c.item_count || 0})</span>`).join('')}
       </div>
 
       <h3 style="margin-bottom:12px">Menu Items</h3>
@@ -284,6 +289,7 @@ export class MorePanel {
         }).join('')}
       </div>
     `;
+    if (typeof lucide !== 'undefined') lucide.createIcons();
   }
 
   // --- Staff ---
@@ -305,6 +311,7 @@ export class MorePanel {
         `).join('')}
       </div>
     `;
+    if (typeof lucide !== 'undefined') lucide.createIcons();
   }
 
   // --- Settings ---
@@ -345,9 +352,10 @@ export class MorePanel {
 
       <div class="settings-section">
         <div class="settings-title">Data</div>
-        <button class="btn-danger" id="seedData">🔄 Reset & Seed Demo Data</button>
+        <button class="btn-danger" id="seedData"><i data-lucide="refresh-cw" style="width:14px;height:14px;vertical-align:middle"></i> Reset & Seed Demo Data</button>
       </div>
     `;
+    if (typeof lucide !== 'undefined') lucide.createIcons();
 
     document.getElementById('saveSettings')?.addEventListener('click', async () => {
       try {

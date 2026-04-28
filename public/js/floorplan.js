@@ -1,5 +1,21 @@
 import { api, showToast, statusColor, formatCurrency, timeAgo } from './utils.js';
 
+// Canvas color palette - warm design system
+const TABLE_COLORS = {
+  available: { fill: 'rgba(92, 184, 92, 0.15)', border: '#5CB85C' },
+  occupied:  { fill: 'rgba(217, 83, 79, 0.15)',  border: '#D9534F' },
+  reserved:  { fill: 'rgba(91, 192, 222, 0.15)',  border: '#5BC0DE' },
+  dirty:     { fill: 'rgba(232, 168, 56, 0.15)',  border: '#E8A838' },
+  blocked:   { fill: 'rgba(107, 100, 89, 0.15)',  border: '#6B6459' },
+};
+const TABLE_TEXT = '#F0EBE1';
+const TABLE_TEXT2 = '#A69F91';
+const HOVER_GLOW = 'rgba(212, 168, 67, 0.3)';
+const SELECTED_FILL = 'rgba(212, 168, 67, 0.4)';
+const SELECTED_BORDER = '#D4A843';
+const BG_COLOR = '#0C0B09';
+const GRID_COLOR = '#1A1814';
+
 export class FloorPlan {
   constructor() {
     this.canvas = document.getElementById('floorCanvas');
@@ -170,7 +186,10 @@ export class FloorPlan {
     this.editMode = !this.editMode;
     const btn = document.getElementById('editModeBtn');
     btn.classList.toggle('active', this.editMode);
-    btn.textContent = this.editMode ? '✏️ Editing' : '✏️ Edit';
+    btn.innerHTML = this.editMode
+      ? '<i data-lucide="pencil" style="width:14px;height:14px;vertical-align:middle"></i> Editing'
+      : '<i data-lucide="pencil" style="width:14px;height:14px;vertical-align:middle"></i> Edit';
+    if (typeof lucide !== 'undefined') lucide.createIcons();
     document.getElementById('addTableBtn').style.display = this.editMode ? 'inline-block' : 'none';
     this.render();
   }
@@ -206,15 +225,16 @@ export class FloorPlan {
     const cw = this.canvas.clientWidth;
     const ch = this.canvas.clientHeight;
 
-    ctx.clearRect(0, 0, cw, ch);
+    // Background
+    ctx.fillStyle = BG_COLOR;
+    ctx.fillRect(0, 0, cw, ch);
 
-    // Background grid
     ctx.save();
     ctx.translate(this.offsetX, this.offsetY);
     ctx.scale(this.scale, this.scale);
 
     // Grid
-    ctx.strokeStyle = '#1a1a1f';
+    ctx.strokeStyle = GRID_COLOR;
     ctx.lineWidth = 1 / this.scale;
     const gridSize = 40;
     const startX = Math.floor(-this.offsetX / this.scale / gridSize) * gridSize - gridSize;
@@ -244,16 +264,24 @@ export class FloorPlan {
     const y = t.y;
     const isHovered = t === this.hoveredTable;
     const isSelected = t === window.APP.selectedTable;
-    const color = statusColor(t.status);
+    const tc = TABLE_COLORS[t.status] || TABLE_COLORS.blocked;
     const r = 10 / this.scale;
 
     ctx.save();
     ctx.translate(x, y);
     if (t.rotation) ctx.rotate(t.rotation * Math.PI / 180);
 
-    // Shadow
-    ctx.shadowColor = isHovered || isSelected ? color : 'rgba(0,0,0,0.3)';
-    ctx.shadowBlur = isHovered || isSelected ? 16 / this.scale : 8 / this.scale;
+    // Shadow / glow
+    if (isSelected) {
+      ctx.shadowColor = SELECTED_BORDER;
+      ctx.shadowBlur = 16 / this.scale;
+    } else if (isHovered) {
+      ctx.shadowColor = HOVER_GLOW;
+      ctx.shadowBlur = 16 / this.scale;
+    } else {
+      ctx.shadowColor = 'rgba(0,0,0,0.3)';
+      ctx.shadowBlur = 8 / this.scale;
+    }
 
     // Shape
     ctx.beginPath();
@@ -267,36 +295,36 @@ export class FloorPlan {
     }
 
     // Fill
-    ctx.fillStyle = isSelected ? color : `${color}18`;
+    ctx.fillStyle = isSelected ? SELECTED_FILL : tc.fill;
     ctx.fill();
 
     // Border
     ctx.shadowBlur = 0;
-    ctx.strokeStyle = isSelected ? color : `${color}88`;
+    ctx.strokeStyle = isSelected ? SELECTED_BORDER : tc.border;
     ctx.lineWidth = (isSelected ? 3 : isHovered ? 2 : 1.5) / this.scale;
     ctx.stroke();
 
     // Table name
-    ctx.fillStyle = isSelected ? '#fff' : color;
+    ctx.fillStyle = isSelected ? '#F0EBE1' : TABLE_TEXT;
     ctx.font = `600 ${Math.max(12, 14) / this.scale}px -apple-system, sans-serif`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText(t.name, 0, -4 / this.scale);
 
     // Seats count
-    ctx.fillStyle = isSelected ? '#ffffff88' : `${color}88`;
+    ctx.fillStyle = isSelected ? TABLE_TEXT2 : TABLE_TEXT2;
     ctx.font = `${11 / this.scale}px -apple-system, sans-serif`;
     ctx.fillText(`${t.seats} seats`, 0, 10 / this.scale);
 
     // Status indicator dot
     ctx.beginPath();
     ctx.arc(w/2 - 8/this.scale, -h/2 + 8/this.scale, 5/this.scale, 0, Math.PI * 2);
-    ctx.fillStyle = color;
+    ctx.fillStyle = tc.border;
     ctx.fill();
 
     // Order info for occupied
     if (t.active_order) {
-      ctx.fillStyle = isSelected ? '#ffffffaa' : '#ffffff66';
+      ctx.fillStyle = '#A69F91';
       ctx.font = `${10 / this.scale}px -apple-system, sans-serif`;
       ctx.fillText(`${t.active_order.covers} covers · ${timeAgo(t.active_order.opened_at)}`, 0, 24/this.scale);
     }

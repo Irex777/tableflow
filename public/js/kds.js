@@ -20,7 +20,8 @@ export class KDSPanel {
     count.textContent = `${orders.length} orders`;
 
     if (!orders.length) {
-      board.innerHTML = '<div style="flex:1;display:flex;align-items:center;justify-content:center;color:var(--text3);font-size:18px">🍳 No orders in kitchen</div>';
+      board.innerHTML = '<div style="flex:1;display:flex;align-items:center;justify-content:center;color:var(--text3);font-size:18px"><i data-lucide="chef-hat" style="width:24px;height:24px;vertical-align:middle"></i> No orders in kitchen</div>';
+      if (typeof lucide !== 'undefined') lucide.createIcons();
       return;
     }
 
@@ -43,9 +44,9 @@ export class KDSPanel {
                 <div class="kds-item-info">
                   <div class="kds-item-name">${item.quantity}× ${item.item_name}</div>
                   ${item.modifiers_text ? `<div class="kds-item-mods">${item.modifiers_text}</div>` : ''}
-                  ${item.item_notes ? `<div class="kds-item-mods">📝 ${item.item_notes}</div>` : ''}
+                  ${item.item_notes ? `<div class="kds-item-mods"><i data-lucide="pencil-line" style="width:12px;height:12px;vertical-align:middle"></i> ${item.item_notes}</div>` : ''}
                 </div>
-                <button class="kds-bump-btn" data-bump="${item.id}">Done</button>
+                <button class="kds-bump-btn" data-bump="${item.id}"><i data-lucide="check" style="width:14px;height:14px;vertical-align:middle"></i> Done</button>
               </div>
             `).join('')}
           </div>
@@ -53,12 +54,14 @@ export class KDSPanel {
       `;
     }).join('');
 
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+
     // Bump buttons
     board.querySelectorAll('.kds-bump-btn').forEach(btn => {
       btn.addEventListener('click', async () => {
         try {
           const result = await api(`/kds/bump/${btn.dataset.bump}`, { method: 'POST' });
-          showToast('Item bumped ✅', 'success');
+          showToast('Item bumped <i data-lucide="check-circle" style="width:14px;height:14px;vertical-align:middle"></i>', 'success');
           this.load();
         } catch (err) {
           showToast(err.message, 'error');
