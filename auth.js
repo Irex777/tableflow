@@ -149,12 +149,12 @@ async function doLogin(){
   const u=document.getElementById('username').value,p=document.getElementById('password').value;
   try{const r=await fetch('/api/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:u,password:p})});
   if(r.ok){window.location.href='/'}else{const e=await r.json();const el=document.getElementById('loginError');el.textContent=e.error;el.style.display='block'}}
-  catch(e){const el=document.getElementById('loginError');el.textContent='Connection error';el.style.display='block'}}
+  catch(e){const el=document.getElementById('loginError');el.textContent='Connection error';el.style.display='block'}
 }
 async function doPin(){
   try{const r=await fetch('/api/auth/pin',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pin})});
   if(r.ok){window.location.href='/'}else{const e=await r.json();const el=document.getElementById('pinError');el.textContent=e.error;el.style.display='block';pin='';document.getElementById('pinDisplay').textContent=''}}
-  catch(e){pin='';document.getElementById('pinDisplay').textContent=''}}
+  catch(e){pin='';document.getElementById('pinDisplay').textContent=''}
 }
 document.getElementById('password').addEventListener('keydown',e=>{if(e.key==='Enter')doLogin()});
 </script>
