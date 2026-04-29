@@ -114,15 +114,15 @@ export function renderTables() {
     if (menu) menu.style.display = 'none';
   });
 
-  const contextMenu = document.getElementById('tableContextMenu');
-  if (contextMenu) {
-    contextMenu.querySelectorAll('[data-set-status]').forEach(item => {
+  const ctxMenu = document.getElementById('tableContextMenu');
+  if (ctxMenu) {
+    ctxMenu.querySelectorAll('[data-set-status]').forEach(item => {
       item.addEventListener('click', async () => {
-        const id = contextMenu.dataset.tableId;
+        const id = ctxMenu.dataset.tableId;
         const newStatus = item.dataset.setStatus;
         await api(`/tables/${id}`, { method: 'PATCH', body: JSON.stringify({ status: newStatus }) });
         tables = tables.map(t => t.id == id ? { ...t, status: newStatus } : t);
-        contextMenu.style.display = 'none';
+        ctxMenu.style.display = 'none';
         renderTables();
       });
     });
