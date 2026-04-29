@@ -31,7 +31,7 @@ export function showToast(message, type = 'info') {
   const container = document.getElementById('toastContainer');
   const toast = document.createElement('div');
   toast.className = `toast ${type}`;
-  toast.innerHTML = message;
+  toast.textContent = message;
   container.appendChild(toast);
   if (typeof lucide !== 'undefined') lucide.createIcons();
   setTimeout(() => toast.remove(), 3000);
@@ -53,13 +53,13 @@ export async function api(path, options = {}) {
 
 export function statusColor(status) {
   const colors = {
-    available: '#5CB85C',
-    occupied: '#D9534F',
-    reserved: '#5BC0DE',
-    dirty: '#E8A838',
-    blocked: '#6B6459',
+    available: '#10b981',
+    occupied: '#6366f1',
+    reserved: '#3b82f6',
+    dirty: '#f59e0b',
+    blocked: '#94a3b8',
   };
-  return colors[status] || '#6B6459';
+  return colors[status] || '#94a3b8';
 }
 
 export function statusLabel(status) {

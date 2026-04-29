@@ -1,435 +1,565 @@
-import { api, showToast, formatCurrency, formatTime, timeAgo, statusColor, statusLabel, emojiToLucide } from './utils.js';
+import { api, formatCurrency, showToast, emojiToLucide, timeAgo, statusColor, statusLabel } from './utils.js';
 
-export class OrdersPanel {
-  constructor() {
-    this.showAddItems = false;
-  }
+// --- State ---
+let categories = [];
+let menuItems = [];
+let activeCategory = null;
+let searchQuery = '';
+let currentOrder = null;
+let tables = [];
 
-  render() {
-    const container = document.getElementById('ordersList');
-    const orders = window.APP.orders.filter(o => o.status === 'open' || o.status === 'fired');
+const categoryColors = [
+  '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6',
+  '#ec4899', '#06b6d4', '#f97316', '#14b8a6', '#6366f1',
+];
 
-    if (!orders.length) {
-      container.innerHTML = '<div style="text-align:center;padding:60px;color:var(--text3)"><div style="font-size:48px;margin-bottom:16px"><i data-lucide="clipboard-list" style="width:48px;height:48px"></i></div>No active orders<br><span style="font-size:13px">Tap a table on the floor plan to create one</span></div>';
-      if (typeof lucide !== 'undefined') lucide.createIcons();
-      return;
+// --- Initialization & Data Loading ---
+
+export async function loadMenu() {
+  try {
+    const [cats, items] = await Promise.all([
+      api('/menu/categories'),
+      api('/menu/items'),
+    ]);
+    categories = cats || [];
+    menuItems = items || [];
+    if (categories.length && !activeCategory) {
+      activeCategory = categories[0].id;
     }
-
-    container.innerHTML = orders.map(o => `
-      <div class="order-card" data-order-id="${o.id}">
-        <div class="order-card-header">
-          <div>
-            <div class="order-card-title">${o.table_name || 'Unknown'}</div>
-            <div class="order-card-time">${o.order_number} · ${timeAgo(o.opened_at)}</div>
-          </div>
-          <span class="order-card-status status-${o.status}">${statusLabel(o.status)}</span>
-        </div>
-        <div class="order-card-items">
-          ${(o.items || []).filter(i => i.status !== 'voided').slice(0, 5).map(i => `
-            <div>${i.quantity}× ${i.item_name} ${i.modifiers_text ? '<span style="color:var(--text3)">(' + i.modifiers_text + ')</span>' : ''}</div>
-          `).join('')}
-          ${o.items && o.items.length > 5 ? `<div style="color:var(--text3)">+${o.items.length - 5} more</div>` : ''}
-        </div>
-        <div class="order-card-footer">
-          <span class="order-card-total">${formatCurrency(o.total)}</span>
-          <span style="color:var(--text3);font-size:12px">${o.covers} covers · ${o.server_name || 'Unassigned'}</span>
-        </div>
-      </div>
-    `).join('');
-
-    if (typeof lucide !== 'undefined') lucide.createIcons();
-
-    container.querySelectorAll('.order-card').forEach(card => {
-      card.addEventListener('click', () => {
-        const id = parseInt(card.dataset.orderId);
-        const order = window.APP.orders.find(o => o.id === id);
-        if (order) this.openOrderPanel(order);
-      });
-    });
-  }
-
-  async openOrderForTable(table) {
-    // Check for existing open order
-    const existing = window.APP.orders.find(o => o.table_id === table.id && (o.status === 'open' || o.status === 'fired'));
-    if (existing) {
-      await this.reloadOrder(existing.id);
-      this.openOrderPanel(window.APP.openOrder);
-    } else {
-      // Create new order
-      try {
-        const order = await api('/orders', {
-          method: 'POST',
-          body: JSON.stringify({ table_id: table.id, covers: table.seats }),
-        });
-        await reloadOrders();
-        await this.reloadOrder(order.id);
-        this.openOrderPanel(window.APP.openOrder);
-        showToast(`Order ${order.order_number} created`, 'success');
-      } catch (err) {
-        showToast(err.message, 'error');
-      }
-    }
-  }
-
-  async reloadOrder(orderId) {
-    if (!orderId && window.APP.openOrder) orderId = window.APP.openOrder.id;
-    if (!orderId) return;
-
-    const orders = await api(`/orders?status=open,fired,completed`);
-    const order = orders.find(o => o.id === orderId);
-    if (order) {
-      window.APP.openOrder = order;
-      // Also refresh the orders list
-      window.APP.orders = await api('/orders?status=open,fired');
-    }
-  }
-
-  openOrderPanel(order) {
-    window.APP.openOrder = order;
-    window.APP.currentSeat = 1;
-    window.APP.currentCourse = 1;
-    window.APP.orderMenuCat = null;
-
-    const panel = document.getElementById('orderPanel');
-    panel.style.display = 'flex';
-    this.renderOrderPanel();
-
-    document.getElementById('orderPanelBackdrop').onclick = () => this.closeOrderPanel();
-  }
-
-  closeOrderPanel() {
-    document.getElementById('orderPanel').style.display = 'none';
-    window.APP.openOrder = null;
-    this.showAddItems = false;
-  }
-
-  renderOrderPanel() {
-    const order = window.APP.openOrder;
-    if (!order) return;
-
-    const table = window.APP.tables.find(t => t.id === order.table_id);
-    const items = (order.items || []).filter(i => i.status !== 'voided');
-    const pending = items.filter(i => i.status === 'pending');
-    const fired = items.filter(i => i.status === 'fired');
-    const ready = items.filter(i => i.status === 'ready');
-    const served = items.filter(i => i.status === 'served');
-
-    const seatCount = Math.max(order.covers || 1, ...items.map(i => i.seat || 1));
-    const activeCat = window.APP.orderMenuCat;
-    const catItems = activeCat ? window.APP.items.filter(i => i.category_id === activeCat && i.active && !i.is_86d) : [];
-
-    document.getElementById('orderPanelContent').innerHTML = `
-      <!-- Header -->
-      <div class="order-header">
-        <div class="order-header-left">
-          <span class="order-table-name">${order.table_name || 'Table'}</span>
-          <span class="order-status-badge status-${order.status}" style="background:${statusColor(order.status)}20;color:${statusColor(order.status)}">${statusLabel(order.status)}</span>
-          <span class="order-timer">${timeAgo(order.opened_at)}</span>
-        </div>
-        <button class="order-close-btn" id="closeOrderPanel"><i data-lucide="x" style="width:20px;height:20px"></i></button>
-      </div>
-
-      <!-- Seats -->
-      <div class="order-seats">
-        ${Array.from({ length: seatCount }, (_, i) => `
-          <button class="seat-btn ${window.APP.currentSeat === i + 1 ? 'active' : ''}" data-seat="${i + 1}"><i data-lucide="armchair" style="width:12px;height:12px;vertical-align:middle"></i> Seat ${i + 1}</button>
-        `).join('')}
-      </div>
-
-      <!-- Courses -->
-      <div class="order-courses">
-        ${[1, 2, 3].map(c => `
-          <button class="course-btn ${window.APP.currentCourse === c ? 'active' : ''}" data-course="${c}">
-            ${['Starter', 'Main', 'Dessert'][c - 1]}
-          </button>
-        `).join('')}
-      </div>
-
-      <div class="order-body">
-        <!-- Items List -->
-        <div class="order-items-list">
-          ${!this.showAddItems ? `
-            ${items.length === 0 ? '<div style="text-align:center;padding:30px;color:var(--text3)">No items yet. Tap "Add Items" below.</div>' : ''}
-            ${items.map(item => `
-              <div class="order-item" style="opacity:${item.status === 'voided' ? 0.3 : 1}">
-                <span class="order-item-seat">${item.seat}</span>
-                <div class="order-item-details">
-                  <div class="order-item-name">${item.quantity}× ${item.item_name}</div>
-                  ${item.modifiers_text ? `<div class="order-item-mods">${item.modifiers_text}</div>` : ''}
-                  ${item.notes ? `<div class="order-item-mods"><i data-lucide="pencil-line" style="width:12px;height:12px;vertical-align:middle"></i> ${item.notes}</div>` : ''}
-                </div>
-                <span class="order-item-price">${formatCurrency(item.quantity * item.unit_price)}</span>
-                ${item.status === 'pending' ? `<button class="order-item-void" data-void="${item.id}"><i data-lucide="x" style="width:14px;height:14px"></i></button>` : ''}
-              </div>
-            `).join('')}
-          ` : `
-            <!-- Add Items Mode -->
-            <div class="order-cats-row">
-              ${window.APP.categories.map(c => `
-                <button class="order-cat-btn ${activeCat === c.id ? 'active' : ''}" data-cat="${c.id}">${emojiToLucide(c.icon)} ${c.name}</button>
-              `).join('')}
-            </div>
-            <div class="order-items-add">
-              ${catItems.map(item => `
-                <button class="order-add-btn" data-add-item="${item.id}">
-                  <div class="order-add-name">${item.name}</div>
-                  <div class="order-add-price">${formatCurrency(item.price)}</div>
-                </button>
-              `).join('')}
-              ${activeCat && catItems.length === 0 ? '<div style="grid-column:1/-1;text-align:center;padding:20px;color:var(--text3)">No items in this category</div>' : ''}
-            </div>
-          `}
-        </div>
-
-        <!-- Footer -->
-        <div class="order-footer">
-          <div class="order-totals">
-            <span>Subtotal</span><span>${formatCurrency(order.subtotal)}</span>
-          </div>
-          <div class="order-totals">
-            <span>Tax (${(order.tax_rate * 100).toFixed(0)}%)</span><span>${formatCurrency(order.tax)}</span>
-          </div>
-          ${order.discount_amount > 0 ? `<div class="order-totals"><span>Discount</span><span>-${formatCurrency(order.discount_amount)}</span></div>` : ''}
-          <div class="order-totals total">
-            <span>Total</span><span>${formatCurrency(order.total)}</span>
-          </div>
-          ${order.total_paid > 0 ? `<div class="order-totals"><span>Paid</span><span style="color:var(--success)">${formatCurrency(order.total_paid)}</span></div>` : ''}
-
-          <div class="order-actions">
-            ${!this.showAddItems ? `
-              <button class="order-action-btn btn-add" id="toggleAddItems"><i data-lucide="plus" style="width:16px;height:16px;vertical-align:middle"></i> Add Items</button>
-              ${pending.length > 0 ? `<button class="order-action-btn btn-fire" id="fireOrder"><i data-lucide="flame" style="width:16px;height:16px;vertical-align:middle"></i> Fire (${pending.length})</button>` : ''}
-              <button class="order-action-btn btn-pay" id="payOrder"><i data-lucide="credit-card" style="width:16px;height:16px;vertical-align:middle"></i> Pay</button>
-            ` : `
-              <button class="order-action-btn" id="toggleAddItems" style="background:var(--surface3);color:var(--text)"><i data-lucide="x" style="width:16px;height:16px;vertical-align:middle"></i> Done</button>
-            `}
-          </div>
-        </div>
-      </div>
-    `;
-
-    if (typeof lucide !== 'undefined') lucide.createIcons();
-    this.bindOrderEvents();
-  }
-
-  bindOrderEvents() {
-    // Close
-    document.getElementById('closeOrderPanel')?.addEventListener('click', () => this.closeOrderPanel());
-
-    // Seats
-    document.querySelectorAll('.seat-btn').forEach(btn => {
-      btn.addEventListener('click', () => {
-        window.APP.currentSeat = parseInt(btn.dataset.seat);
-        this.renderOrderPanel();
-      });
-    });
-
-    // Courses
-    document.querySelectorAll('.course-btn').forEach(btn => {
-      btn.addEventListener('click', () => {
-        window.APP.currentCourse = parseInt(btn.dataset.course);
-        this.renderOrderPanel();
-      });
-    });
-
-    // Toggle add items
-    document.getElementById('toggleAddItems')?.addEventListener('click', () => {
-      this.showAddItems = !this.showAddItems;
-      if (this.showAddItems && !window.APP.orderMenuCat && window.APP.categories.length) {
-        window.APP.orderMenuCat = window.APP.categories[0].id;
-      }
-      this.renderOrderPanel();
-    });
-
-    // Category select
-    document.querySelectorAll('.order-cat-btn').forEach(btn => {
-      btn.addEventListener('click', () => {
-        window.APP.orderMenuCat = parseInt(btn.dataset.cat);
-        this.renderOrderPanel();
-      });
-    });
-
-    // Add item
-    document.querySelectorAll('.order-add-btn').forEach(btn => {
-      btn.addEventListener('click', async () => {
-        const itemId = parseInt(btn.dataset.addItem);
-        const order = window.APP.openOrder;
-        try {
-          await api(`/orders/${order.id}/items`, {
-            method: 'POST',
-            body: JSON.stringify({
-              items: [{
-                menu_item_id: itemId,
-                seat: window.APP.currentSeat,
-                course: window.APP.currentCourse,
-                quantity: 1,
-                modifiers: [],
-              }],
-            }),
-          });
-          await this.reloadOrder();
-          this.renderOrderPanel();
-          showToast('Item added');
-        } catch (err) {
-          showToast(err.message, 'error');
-        }
-      });
-    });
-
-    // Void item
-    document.querySelectorAll('[data-void]').forEach(btn => {
-      btn.addEventListener('click', async (e) => {
-        e.stopPropagation();
-        const itemId = parseInt(btn.dataset.void);
-        try {
-          await api(`/orders/${window.APP.openOrder.id}/items/${itemId}`, {
-            method: 'PATCH',
-            body: JSON.stringify({ status: 'voided', void_reason: 'Cancelled' }),
-          });
-          await this.reloadOrder();
-          this.renderOrderPanel();
-        } catch (err) {
-          showToast(err.message, 'error');
-        }
-      });
-    });
-
-    // Fire order
-    document.getElementById('fireOrder')?.addEventListener('click', async () => {
-      try {
-        await api(`/orders/${window.APP.openOrder.id}/fire`, { method: 'POST' });
-        await this.reloadOrder();
-        this.renderOrderPanel();
-        showToast('Order fired to kitchen! <i data-lucide="flame" style="width:14px;height:14px;vertical-align:middle"></i>', 'success');
-      } catch (err) {
-        showToast(err.message, 'error');
-      }
-    });
-
-    // Pay
-    document.getElementById('payOrder')?.addEventListener('click', () => {
-      this.openPaymentModal();
-    });
-  }
-
-  openPaymentModal() {
-    const order = window.APP.openOrder;
-    if (!order) return;
-    const remaining = order.total - (order.total_paid || 0);
-
-    document.getElementById('paymentModal').style.display = 'flex';
-    document.getElementById('paymentModalBody').innerHTML = `
-      <div class="payment-total">${formatCurrency(remaining)}</div>
-      <div class="split-options">
-        <button class="split-btn active" data-split="full">Full</button>
-        <button class="split-btn" data-split="even">Split Evenly</button>
-        <button class="split-btn" data-split="custom">Custom</button>
-      </div>
-      <div id="splitContent"></div>
-      <div class="payment-methods">
-        <button class="pay-method-btn active" data-method="cash"><i data-lucide="banknote" style="width:16px;height:16px;vertical-align:middle"></i> Cash</button>
-        <button class="pay-method-btn" data-method="card"><i data-lucide="credit-card" style="width:16px;height:16px;vertical-align:middle"></i> Card</button>
-        <button class="pay-method-btn" data-method="mobile"><i data-lucide="smartphone" style="width:16px;height:16px;vertical-align:middle"></i> Mobile</button>
-      </div>
-      <div class="payment-quick">
-        <button class="payment-quick-btn" data-amount="${remaining.toFixed(2)}">Exact</button>
-        ${[5, 10, 20, 50, 100].map(v => `<button class="payment-quick-btn" data-amount="${v}">${formatCurrency(v)}</button>`).join('')}
-      </div>
-      <div class="payment-actions">
-        <div style="margin-bottom:8px">
-          <input type="number" id="paymentAmount" value="${remaining.toFixed(2)}" step="0.01"
-            style="width:100%;padding:12px;background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:var(--radius);font-size:18px;text-align:center;font-weight:600">
-        </div>
-        <button class="payment-confirm-btn" id="confirmPayment">Confirm Payment</button>
-      </div>
-    `;
-
-    if (typeof lucide !== 'undefined') lucide.createIcons();
-
-    let selectedMethod = 'cash';
-    let selectedSplit = 'full';
-
-    // Method select
-    document.querySelectorAll('.pay-method-btn').forEach(btn => {
-      btn.addEventListener('click', () => {
-        document.querySelectorAll('.pay-method-btn').forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-        selectedMethod = btn.dataset.method;
-      });
-    });
-
-    // Split select
-    document.querySelectorAll('.split-btn').forEach(btn => {
-      btn.addEventListener('click', () => {
-        document.querySelectorAll('.split-btn').forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-        selectedSplit = btn.dataset.split;
-        const splitContent = document.getElementById('splitContent');
-        if (selectedSplit === 'even') {
-          const perPerson = remaining / (order.covers || 1);
-          splitContent.innerHTML = `<div style="text-align:center;padding:12px;color:var(--text2)">${order.covers} × ${formatCurrency(perPerson)}</div>`;
-          document.getElementById('paymentAmount').value = perPerson.toFixed(2);
-        } else if (selectedSplit === 'full') {
-          splitContent.innerHTML = '';
-          document.getElementById('paymentAmount').value = remaining.toFixed(2);
-        }
-      });
-    });
-
-    // Quick amounts
-    document.querySelectorAll('.payment-quick-btn').forEach(btn => {
-      btn.addEventListener('click', () => {
-        document.getElementById('paymentAmount').value = btn.dataset.amount;
-      });
-    });
-
-    // Confirm
-    document.getElementById('confirmPayment').addEventListener('click', async () => {
-      const amount = parseFloat(document.getElementById('paymentAmount').value);
-      if (!amount || amount <= 0) return showToast('Invalid amount', 'error');
-      try {
-        const result = await api(`/orders/${order.id}/payments`, {
-          method: 'POST',
-          body: JSON.stringify({ amount, method: selectedMethod }),
-        });
-        showToast('Payment recorded', 'success');
-        document.getElementById('paymentModal').style.display = 'none';
-        await this.reloadOrder();
-        if (result.auto_closed) {
-          this.closeOrderPanel();
-          showToast('Order completed! <i data-lucide="check-circle" style="width:14px;height:14px;vertical-align:middle"></i>', 'success');
-        } else {
-          this.renderOrderPanel();
-        }
-        await reloadOrders();
-      } catch (err) {
-        showToast(err.message, 'error');
-      }
-    });
-
-    document.getElementById('paymentModalClose').addEventListener('click', () => {
-      document.getElementById('paymentModal').style.display = 'none';
-    });
+  } catch (err) {
+    console.error('Failed to load menu:', err);
+    showToast('Failed to load menu', 'error');
   }
 }
 
-// Export for floorplan to call
-export function openOrderForTable(table) {
-  const panel = new OrdersPanel();
-  panel.openOrderForTable(table);
+async function loadTables() {
+  try {
+    tables = await api('/tables');
+  } catch (err) {
+    console.error('Failed to load tables:', err);
+  }
 }
 
-async function reloadOrders() {
-  window.APP.orders = await api('/orders?status=open,fired');
+async function loadActiveOrders() {
+  try {
+    return await api('/orders?status=open,fired');
+  } catch {
+    return [];
+  }
+}
+
+async function createOrder(tableId, covers) {
+  try {
+    const order = await api('/orders', {
+      method: 'POST',
+      body: JSON.stringify({ table_id: tableId, covers }),
+    });
+    showToast(`Order ${order.order_number} created`, 'success');
+    return order;
+  } catch (err) {
+    showToast(err.message, 'error');
+    return null;
+  }
 }
 
 async function reloadOrder(orderId) {
-  if (!orderId && window.APP.openOrder) orderId = window.APP.openOrder.id;
+  if (!orderId && currentOrder) orderId = currentOrder.id;
   if (!orderId) return;
-  const orders = await api('/orders?status=open,fired,completed');
-  const order = orders.find(o => o.id === orderId);
-  if (order) {
-    window.APP.openOrder = order;
-    await reloadOrders();
+  try {
+    const orders = await api('/orders?status=open,fired,completed');
+    const order = orders.find(o => o.id === orderId);
+    if (order) {
+      currentOrder = order;
+    } else {
+      currentOrder = null;
+    }
+  } catch (err) {
+    console.error('Failed to reload order:', err);
+  }
+}
+
+// --- Main Refresh (called when POS tab is activated) ---
+
+export async function refresh() {
+  await loadTables();
+  await loadMenu();
+  await loadOrderForCurrentTable();
+  renderCategories();
+  renderMenuItems();
+  renderTicket();
+  bindSearch();
+}
+
+async function loadOrderForCurrentTable() {
+  const tableId = parseInt(window.currentTableId);
+  if (!tableId) {
+    currentOrder = null;
+    return;
+  }
+
+  try {
+    const orders = await loadActiveOrders();
+    const existing = orders.find(o => o.table_id === tableId);
+    if (existing) {
+      currentOrder = existing;
+    } else {
+      const table = tables.find(t => t.id === tableId);
+      if (table) {
+        currentOrder = await createOrder(tableId, table.seats || 1);
+      }
+    }
+  } catch (err) {
+    console.error('Error loading order for table:', err);
+  }
+}
+
+// --- Category Rendering ---
+
+function renderCategories() {
+  const container = document.getElementById('posCategories');
+  if (!container) return;
+
+  let html = `<button class="pos-cat-pill ${!activeCategory ? 'active' : ''}" data-cat="all">All</button>`;
+  categories.forEach((cat, idx) => {
+    const color = cat.color || categoryColors[idx % categoryColors.length];
+    html += `<button class="pos-cat-pill ${activeCategory === cat.id ? 'active' : ''}" data-cat="${cat.id}" style="--cat-color:${color}">${emojiToLucide(cat.icon)} ${cat.name}</button>`;
+  });
+  container.innerHTML = html;
+
+  container.querySelectorAll('.pos-cat-pill').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const cat = btn.dataset.cat;
+      activeCategory = cat === 'all' ? null : parseInt(cat);
+      renderCategories();
+      renderMenuItems();
+    });
+  });
+
+  if (window.lucide) window.lucide.createIcons();
+}
+
+// --- Menu Items Rendering ---
+
+function getFilteredItems() {
+  let items = menuItems.filter(i => i.active && !i.is_86d);
+
+  if (activeCategory) {
+    items = items.filter(i => i.category_id === activeCategory);
+  }
+
+  if (searchQuery) {
+    const q = searchQuery.toLowerCase();
+    items = items.filter(i =>
+      i.name.toLowerCase().includes(q) ||
+      (i.description || '').toLowerCase().includes(q) ||
+      (i.category_name || '').toLowerCase().includes(q)
+    );
+  }
+
+  return items;
+}
+
+function renderMenuItems() {
+  const grid = document.getElementById('posItemsGrid');
+  if (!grid) return;
+
+  const items = getFilteredItems();
+
+  if (items.length === 0) {
+    grid.innerHTML = `<div style="grid-column:1/-1;text-align:center;padding:40px;color:#94a3b8">
+      <i data-lucide="search-x" style="width:48px;height:48px;opacity:0.3;margin-bottom:12px"></i>
+      <p>No menu items found</p>
+    </div>`;
+    if (window.lucide) window.lucide.createIcons();
+    return;
+  }
+
+  grid.innerHTML = items.map(item => {
+    const cat = categories.find(c => c.id === item.category_id);
+    const color = cat ? (cat.color || categoryColors[categories.indexOf(cat) % categoryColors.length]) : '#94a3b8';
+    const catName = item.category_name || cat?.name || '';
+    return `<div class="pos-item-card" data-item-id="${item.id}">
+      <div class="pos-item-icon" style="--cat-color:${color}">${emojiToLucide(cat?.icon || '🍽️')}</div>
+      <div class="pos-item-name">${item.name}</div>
+      <div class="pos-item-cat">${catName}</div>
+      <div class="pos-item-price">${formatCurrency(item.price)}</div>
+    </div>`;
+  }).join('');
+
+  grid.querySelectorAll('.pos-item-card').forEach(card => {
+    card.addEventListener('click', () => {
+      const itemId = parseInt(card.dataset.itemId);
+      addItemToOrder(itemId);
+    });
+  });
+
+  if (window.lucide) window.lucide.createIcons();
+}
+
+// --- Search Binding ---
+
+function bindSearch() {
+  const input = document.getElementById('posSearch');
+  if (!input) return;
+
+  // Remove previous listener by cloning
+  const newInput = input.cloneNode(true);
+  input.parentNode.replaceChild(newInput, input);
+
+  newInput.addEventListener('input', () => {
+    searchQuery = newInput.value.trim();
+    renderMenuItems();
+  });
+}
+
+// --- Ticket Rendering ---
+
+function renderTicket() {
+  renderTicketHeader();
+  renderTicketItems();
+  renderTicketTotals();
+}
+
+function renderTicketHeader() {
+  const badgeEl = document.getElementById('posTableBadge');
+  const guestsEl = document.getElementById('posGuests');
+  const tableId = parseInt(window.currentTableId);
+  const table = tables.find(t => t.id === tableId);
+
+  if (badgeEl) {
+    if (table) {
+      badgeEl.textContent = table.name || `Table ${table.id}`;
+      badgeEl.style.display = '';
+    } else {
+      badgeEl.textContent = 'No Table';
+      badgeEl.style.display = '';
+    }
+  }
+
+  if (guestsEl) {
+    if (currentOrder) {
+      guestsEl.textContent = `${currentOrder.covers || 1} guest${(currentOrder.covers || 1) !== 1 ? 's' : ''}`;
+    } else if (table) {
+      guestsEl.textContent = `${table.seats || 1} seats`;
+    } else {
+      guestsEl.textContent = 'Select a table';
+    }
+  }
+}
+
+function renderTicketItems() {
+  const container = document.getElementById('posTicketItems');
+  if (!container) return;
+
+  if (!currentOrder || !currentOrder.items || currentOrder.items.length === 0) {
+    container.innerHTML = `<div class="pos-ticket-empty">
+      <i data-lucide="receipt" style="width:48px;height:48px;opacity:0.15"></i>
+      <p>No items in current order</p>
+      <span>${parseInt(window.currentTableId) ? 'Tap menu items to add them.' : 'Select a table from the floor plan first.'}</span>
+    </div>`;
+    if (window.lucide) window.lucide.createIcons();
+    return;
+  }
+
+  const items = currentOrder.items.filter(i => i.status !== 'voided');
+
+  container.innerHTML = items.map(item => {
+    const lineTotal = item.quantity * item.unit_price;
+    return `<div class="pos-ticket-item" data-ticket-item="${item.id}">
+      <div class="pos-ticket-item-row">
+        <div class="pos-ticket-item-info">
+          <span class="pos-ticket-item-name">${item.item_name}</span>
+          ${item.modifiers_text ? `<span class="pos-ticket-item-mods">${item.modifiers_text}</span>` : ''}
+          ${item.notes ? `<span class="pos-ticket-item-notes"><i data-lucide="pencil-line" style="width:11px;height:11px"></i> ${item.notes}</span>` : ''}
+        </div>
+        <div class="pos-ticket-item-qty">
+          <button class="pos-qty-btn pos-qty-minus" data-qty-action="minus" data-item-id="${item.id}"><i data-lucide="minus" style="width:14px;height:14px"></i></button>
+          <span class="pos-qty-value">${item.quantity}</span>
+          <button class="pos-qty-btn pos-qty-plus" data-qty-action="plus" data-item-id="${item.id}"><i data-lucide="plus" style="width:14px;height:14px"></i></button>
+        </div>
+        <span class="pos-ticket-item-price">${formatCurrency(lineTotal)}</span>
+        ${item.status === 'pending' ? `<button class="pos-qty-btn pos-qty-void" data-void="${item.id}" title="Void item"><i data-lucide="x" style="width:14px;height:14px"></i></button>` : ''}
+      </div>
+    </div>`;
+  }).join('');
+
+  // Bind qty controls
+  container.querySelectorAll('.pos-qty-btn[data-qty-action]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const itemId = parseInt(btn.dataset.itemId);
+      const action = btn.dataset.qtyAction;
+      await handleQtyChange(itemId, action);
+    });
+  });
+
+  // Bind void buttons
+  container.querySelectorAll('[data-void]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const itemId = parseInt(btn.dataset.void);
+      await voidItem(itemId);
+    });
+  });
+
+  if (window.lucide) window.lucide.createIcons();
+}
+
+function renderTicketTotals() {
+  const footer = document.getElementById('posTicketFooter');
+  if (!footer) return;
+
+  if (!currentOrder || !currentOrder.items || currentOrder.items.filter(i => i.status !== 'voided').length === 0) {
+    footer.style.display = 'none';
+    return;
+  }
+
+  footer.style.display = '';
+
+  const subtotalEl = document.getElementById('posSubtotal');
+  const taxEl = document.getElementById('posTax');
+  const totalEl = document.getElementById('posTotal');
+
+  if (subtotalEl) subtotalEl.textContent = formatCurrency(currentOrder.subtotal);
+  if (taxEl) taxEl.textContent = formatCurrency(currentOrder.tax);
+  if (totalEl) totalEl.textContent = formatCurrency(currentOrder.total);
+
+  renderActions();
+}
+
+function renderActions() {
+  const container = document.getElementById('posActions');
+  if (!container) return;
+
+  const items = (currentOrder?.items || []).filter(i => i.status !== 'voided');
+  const pending = items.filter(i => i.status === 'pending');
+
+  container.innerHTML = `
+    ${pending.length > 0 ? `<button class="btn-fire" id="btnFire"><i data-lucide="flame" style="width:16px;height:16px;vertical-align:middle"></i> Fire (${pending.length})</button>` : ''}
+    <button class="btn-pay" id="btnPay"><i data-lucide="credit-card" style="width:16px;height:16px;vertical-align:middle"></i> Pay</button>
+  `;
+
+  const fireBtn = document.getElementById('btnFire');
+  if (fireBtn) {
+    fireBtn.addEventListener('click', async () => {
+      await fireOrder();
+    });
+  }
+
+  const payBtn = document.getElementById('btnPay');
+  if (payBtn) {
+    payBtn.addEventListener('click', () => {
+      openPaymentModal();
+    });
+  }
+
+  if (window.lucide) window.lucide.createIcons();
+}
+
+// --- Order Operations ---
+
+async function addItemToOrder(itemId) {
+  if (!currentOrder) {
+    showToast('No active order — select a table first', 'error');
+    return;
+  }
+
+  try {
+    await api(`/orders/${currentOrder.id}/items`, {
+      method: 'POST',
+      body: JSON.stringify({
+        items: [{
+          menu_item_id: itemId,
+          seat: 1,
+          course: 1,
+          quantity: 1,
+          modifiers: [],
+        }],
+      }),
+    });
+    await reloadOrder();
+    renderTicket();
+    showToast('Item added', 'success');
+  } catch (err) {
+    showToast(err.message, 'error');
+  }
+}
+
+async function handleQtyChange(itemId, action) {
+  if (!currentOrder) return;
+  const item = currentOrder.items.find(i => i.id === itemId);
+  if (!item) return;
+
+  let newQty = item.quantity;
+  if (action === 'plus') {
+    newQty += 1;
+  } else if (action === 'minus') {
+    newQty -= 1;
+  }
+
+  if (newQty <= 0) {
+    await voidItem(itemId);
+    return;
+  }
+
+  try {
+    await api(`/orders/${currentOrder.id}/items/${itemId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ quantity: newQty }),
+    });
+    await reloadOrder();
+    renderTicket();
+  } catch (err) {
+    showToast(err.message, 'error');
+  }
+}
+
+async function voidItem(itemId) {
+  if (!currentOrder) return;
+  try {
+    await api(`/orders/${currentOrder.id}/items/${itemId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status: 'voided', void_reason: 'Cancelled' }),
+    });
+    await reloadOrder();
+    renderTicket();
+    showToast('Item voided', 'info');
+  } catch (err) {
+    showToast(err.message, 'error');
+  }
+}
+
+async function fireOrder() {
+  if (!currentOrder) return;
+  try {
+    await api(`/orders/${currentOrder.id}/fire`, { method: 'POST' });
+    await reloadOrder();
+    renderTicket();
+    showToast('Order fired to kitchen!', 'success');
+  } catch (err) {
+    showToast(err.message, 'error');
+  }
+}
+
+// --- Payment Modal ---
+
+function openPaymentModal() {
+  if (!currentOrder) return;
+
+  const remaining = currentOrder.total - (currentOrder.total_paid || 0);
+  const modal = document.getElementById('paymentModal');
+  const body = document.getElementById('paymentModalBody');
+  if (!modal || !body) return;
+
+  modal.style.display = 'flex';
+
+  body.innerHTML = `
+    <div class="payment-total">${formatCurrency(remaining)}</div>
+    <div class="split-options">
+      <button class="split-btn active" data-split="full">Full</button>
+      <button class="split-btn" data-split="even">Split Evenly</button>
+      <button class="split-btn" data-split="custom">Custom</button>
+    </div>
+    <div id="splitContent"></div>
+    <div class="payment-methods">
+      <button class="pay-method-btn active" data-method="cash"><i data-lucide="banknote" style="width:16px;height:16px;vertical-align:middle"></i> Cash</button>
+      <button class="pay-method-btn" data-method="card"><i data-lucide="credit-card" style="width:16px;height:16px;vertical-align:middle"></i> Card</button>
+      <button class="pay-method-btn" data-method="mobile"><i data-lucide="smartphone" style="width:16px;height:16px;vertical-align:middle"></i> Mobile</button>
+    </div>
+    <div class="payment-quick">
+      <button class="payment-quick-btn" data-amount="${remaining.toFixed(2)}">Exact</button>
+      ${[5, 10, 20, 50, 100].map(v => `<button class="payment-quick-btn" data-amount="${v}">${formatCurrency(v)}</button>`).join('')}
+    </div>
+    <div class="payment-actions">
+      <div style="margin-bottom:8px">
+        <input type="number" id="paymentAmount" value="${remaining.toFixed(2)}" step="0.01"
+          style="width:100%;padding:12px;background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:var(--radius);font-size:18px;text-align:center;font-weight:600">
+      </div>
+      <button class="payment-confirm-btn" id="confirmPayment">Confirm Payment</button>
+    </div>
+  `;
+
+  if (window.lucide) window.lucide.createIcons();
+
+  let selectedMethod = 'cash';
+  let selectedSplit = 'full';
+
+  // Method select
+  body.querySelectorAll('.pay-method-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      body.querySelectorAll('.pay-method-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      selectedMethod = btn.dataset.method;
+    });
+  });
+
+  // Split select
+  body.querySelectorAll('.split-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      body.querySelectorAll('.split-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      selectedSplit = btn.dataset.split;
+      const splitContent = document.getElementById('splitContent');
+      if (selectedSplit === 'even') {
+        const perPerson = remaining / (currentOrder.covers || 1);
+        splitContent.innerHTML = `<div style="text-align:center;padding:12px;color:var(--text2)">${currentOrder.covers} × ${formatCurrency(perPerson)}</div>`;
+        document.getElementById('paymentAmount').value = perPerson.toFixed(2);
+      } else if (selectedSplit === 'full') {
+        splitContent.innerHTML = '';
+        document.getElementById('paymentAmount').value = remaining.toFixed(2);
+      }
+    });
+  });
+
+  // Quick amounts
+  body.querySelectorAll('.payment-quick-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.getElementById('paymentAmount').value = btn.dataset.amount;
+    });
+  });
+
+  // Confirm payment
+  document.getElementById('confirmPayment').addEventListener('click', async () => {
+    await processPayment(selectedMethod);
+  });
+
+  // Close handlers
+  const closeBtn = document.getElementById('paymentModalClose');
+  if (closeBtn) {
+    closeBtn.onclick = () => { modal.style.display = 'none'; };
+  }
+  const backdrop = document.getElementById('paymentModalBackdrop');
+  if (backdrop) {
+    backdrop.onclick = () => { modal.style.display = 'none'; };
+  }
+}
+
+async function processPayment(method) {
+  if (!currentOrder) return;
+
+  const amountInput = document.getElementById('paymentAmount');
+  const amount = parseFloat(amountInput?.value);
+  if (!amount || amount <= 0) {
+    showToast('Invalid amount', 'error');
+    return;
+  }
+
+  try {
+    const result = await api(`/orders/${currentOrder.id}/payments`, {
+      method: 'POST',
+      body: JSON.stringify({ amount, method }),
+    });
+    showToast('Payment recorded', 'success');
+    document.getElementById('paymentModal').style.display = 'none';
+
+    if (result.auto_closed) {
+      currentOrder = null;
+      window.currentTableId = null;
+      renderTicket();
+      showToast('Order completed! Table cleared.', 'success');
+    } else {
+      await reloadOrder();
+      renderTicket();
+    }
+  } catch (err) {
+    showToast(err.message, 'error');
   }
 }

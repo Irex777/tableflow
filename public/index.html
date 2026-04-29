@@ -12,145 +12,105 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 </head>
 <body>
-  <!-- Header -->
-  <header id="header">
-    <div class="header-left">
-      <span class="logo">🍽️ TableFlow</span>
-      <span id="connectionStatus" class="ws-status ws-connected" title="WebSocket">●</span>
+  <!-- Sidebar -->
+  <aside id="sidebar">
+    <div class="sidebar-logo"><i data-lucide="utensils-crossed"></i></div>
+    <nav class="sidebar-nav">
+      <button class="sidebar-item active" data-tab="tables"><i data-lucide="layout-dashboard"></i><span>Tables</span></button>
+      <button class="sidebar-item" data-tab="pos"><i data-lucide="receipt"></i><span>POS</span></button>
+      <button class="sidebar-item" data-tab="orders"><i data-lucide="clipboard-list"></i><span>Orders</span></button>
+      <button class="sidebar-item" data-tab="kitchen"><i data-lucide="chef-hat"></i><span>Kitchen</span></button>
+      <button class="sidebar-item" data-tab="staff"><i data-lucide="users"></i><span>Staff</span></button>
+    </nav>
+    <div class="sidebar-bottom">
+      <button class="sidebar-item" data-tab="settings"><i data-lucide="settings"></i><span>Settings</span></button>
+      <button class="sidebar-item" id="logoutBtn"><i data-lucide="log-out"></i><span>Logout</span></button>
     </div>
-    <div class="header-center">
-      <span id="currentTime"></span>
-    </div>
-    <div class="header-right">
-      <span id="currentUser"></span>
-      <button id="logoutBtn" class="btn-icon" title="Logout">⏻</button>
-    </div>
-  </header>
+  </aside>
 
-  <!-- Status Bar -->
-  <div id="statusBar">
-    <div class="status-summary">
-      <span id="statusOccupied">0 occupied</span>
-      <span class="sep">|</span>
-      <span id="statusAvailable">0 available</span>
-      <span class="sep">|</span>
-      <span id="statusRevenue">€0 today</span>
-    </div>
-    <div class="status-filters">
-      <button class="filter-btn active" data-filter="all">All</button>
-      <button class="filter-btn" data-filter="available">🟢 Free</button>
-      <button class="filter-btn" data-filter="occupied">🔴 Busy</button>
-      <button class="filter-btn" data-filter="reserved">🔵 Reserved</button>
-    </div>
-  </div>
-
-  <!-- Section Tabs -->
-  <div id="sectionTabs">
-    <button class="section-tab active" data-section="all">All Sections</button>
-  </div>
-
-  <!-- Main Content Area -->
-  <main id="mainContent">
-    <!-- Floor Plan Tab -->
-    <div id="tabFloor" class="tab-content active">
-      <div id="floorPlanContainer">
-        <canvas id="floorCanvas"></canvas>
+  <!-- Main -->
+  <div class="main-wrapper">
+    <header id="header">
+      <h1 class="header-title" id="pageTitle">Floor Plan</h1>
+      <div class="header-right">
+        <span id="connectionStatus" class="ws-dot ws-connected" title="WebSocket"></span>
+        <div class="header-pill"><i data-lucide="map-pin" style="width:14px;height:14px"></i><span id="headerLocation">Restaurant</span></div>
+        <div class="header-pill"><i data-lucide="clock" style="width:14px;height:14px;color:#3b82f6"></i><span id="currentTime"></span></div>
+        <div class="header-avatar"><span id="currentUser">A</span></div>
       </div>
-      <div id="floorToolbar">
-        <button id="editModeBtn" class="tool-btn">✏️ Edit</button>
-        <button id="addTableBtn" class="tool-btn" style="display:none">+ Table</button>
-        <button id="zoomInBtn" class="tool-btn">🔍+</button>
-        <button id="zoomOutBtn" class="tool-btn">🔍-</button>
-        <button id="zoomResetBtn" class="tool-btn">⟲</button>
-      </div>
-    </div>
+    </header>
 
-    <!-- Orders Tab -->
-    <div id="tabOrders" class="tab-content">
-      <div id="ordersList" class="orders-grid"></div>
-    </div>
-
-    <!-- Menu Tab -->
-    <div id="tabMenu" class="tab-content">
-      <div id="menuCategories" class="menu-cat-grid"></div>
-      <div id="menuItems" class="menu-items-grid"></div>
-    </div>
-
-    <!-- Kitchen Tab (KDS) -->
-    <div id="tabKitchen" class="tab-content">
-      <div id="kdsHeader">
-        <span>Kitchen Display</span>
-        <span id="kdsCount">0 orders</span>
-      </div>
-      <div id="kdsBoard" class="kds-board"></div>
-    </div>
-
-    <!-- More Tab -->
-    <div id="tabMore" class="tab-content">
-      <div class="more-grid">
-        <button class="more-card" data-subtab="analytics">📊 Analytics</button>
-        <button class="more-card" data-subtab="reservations">📅 Reservations</button>
-        <button class="more-card" data-subtab="waitlist">⏳ Waitlist</button>
-        <button class="more-card" data-subtab="menuManage">📋 Menu Mgmt</button>
-        <button class="more-card" data-subtab="staff">👥 Staff</button>
-        <button class="more-card" data-subtab="settings">⚙️ Settings</button>
+    <div class="content-area">
+      <div id="tabTables" class="tab-content active">
+        <div class="tab-inner">
+          <div class="tables-legend" id="tablesLegend"></div>
+          <div class="tables-grid" id="tablesGrid"></div>
+        </div>
       </div>
 
-      <!-- Sub-tabs -->
-      <div id="subtabAnalytics" class="subtab-content" style="display:none"></div>
-      <div id="subtabReservations" class="subtab-content" style="display:none"></div>
-      <div id="subtabWaitlist" class="subtab-content" style="display:none"></div>
-      <div id="subtabMenuManage" class="subtab-content" style="display:none"></div>
-      <div id="subtabStaff" class="subtab-content" style="display:none"></div>
-      <div id="subtabSettings" class="subtab-content" style="display:none"></div>
-    </div>
-  </main>
+      <div id="tabPos" class="tab-content">
+        <div class="pos-layout">
+          <div class="pos-menu-area">
+            <div class="pos-search-row">
+              <div class="pos-search">
+                <i data-lucide="search" style="width:18px;height:18px;color:#94a3b8;position:absolute;left:14px;top:50%;transform:translateY(-50%)"></i>
+                <input type="text" id="posSearch" placeholder="Search menu items..." class="pos-search-input">
+              </div>
+            </div>
+            <div class="pos-categories" id="posCategories"></div>
+            <div class="pos-items-grid" id="posItemsGrid"></div>
+          </div>
+          <div class="pos-ticket" id="posTicket">
+            <div class="pos-ticket-header">
+              <div class="pos-ticket-title-row">
+                <h2>Current Order</h2>
+                <span class="pos-table-badge" id="posTableBadge">No Table</span>
+              </div>
+              <div class="pos-ticket-meta"><i data-lucide="users" style="width:14px;height:14px"></i><span id="posGuests">Select a table</span></div>
+            </div>
+            <div class="pos-ticket-items" id="posTicketItems">
+              <div class="pos-ticket-empty"><i data-lucide="receipt" style="width:48px;height:48px;opacity:0.15"></i><p>No items in current order</p><span>Select a table from the floor plan first.</span></div>
+            </div>
+            <div class="pos-ticket-footer" id="posTicketFooter" style="display:none">
+              <div class="pos-totals">
+                <div class="pos-total-row"><span>Subtotal</span><span id="posSubtotal"></span></div>
+                <div class="pos-total-row"><span>Tax</span><span id="posTax"></span></div>
+                <div class="pos-total-row pos-total-final"><span>Total</span><span id="posTotal"></span></div>
+              </div>
+              <div class="pos-actions" id="posActions"></div>
+            </div>
+          </div>
+        </div>
+      </div>
 
-  <!-- Order Panel (slide-up) -->
-  <div id="orderPanel" class="panel-overlay" style="display:none">
-    <div class="panel-backdrop" id="orderPanelBackdrop"></div>
-    <div class="panel-sheet" id="orderSheet">
-      <div class="panel-handle"><div class="handle-bar"></div></div>
-      <div id="orderPanelContent"></div>
+      <div id="tabOrders" class="tab-content">
+        <div class="tab-inner">
+          <div class="orders-header"><h2>Active Orders</h2><span class="orders-count" id="ordersCount">0 orders</span></div>
+          <div class="orders-list" id="ordersList"></div>
+        </div>
+      </div>
+
+      <div id="tabKitchen" class="tab-content">
+        <div class="kds-wrapper">
+          <div class="kds-header"><h2>Kitchen Display</h2><span class="orders-count" id="kdsCount">0 orders</span></div>
+          <div class="kds-board" id="kdsBoard"></div>
+        </div>
+      </div>
+
+      <div id="tabStaff" class="tab-content"><div class="tab-inner" id="staffContent"></div></div>
+      <div id="tabSettings" class="tab-content"><div class="tab-inner" id="settingsContent"></div></div>
     </div>
   </div>
 
   <!-- Payment Modal -->
   <div id="paymentModal" class="modal-overlay" style="display:none">
+    <div class="modal-backdrop" id="paymentModalBackdrop"></div>
     <div class="modal-content">
-      <div class="modal-header">
-        <h3>Payment</h3>
-        <button class="modal-close" id="paymentModalClose">&times;</button>
-      </div>
+      <div class="modal-header"><h3>Payment</h3><button class="modal-close" id="paymentModalClose"><i data-lucide="x"></i></button></div>
       <div id="paymentModalBody"></div>
     </div>
   </div>
 
-  <!-- Bottom Navigation -->
-  <nav id="bottomNav">
-    <button class="nav-btn active" data-tab="Floor">
-      <span class="nav-icon">🏠</span>
-      <span class="nav-label">Floor</span>
-    </button>
-    <button class="nav-btn" data-tab="Orders">
-      <span class="nav-icon">📋</span>
-      <span class="nav-label">Orders</span>
-    </button>
-    <button class="nav-btn" data-tab="Menu">
-      <span class="nav-icon">🍽️</span>
-      <span class="nav-label">Menu</span>
-    </button>
-    <button class="nav-btn" data-tab="Kitchen">
-      <span class="nav-icon">🍳</span>
-      <span class="nav-label">Kitchen</span>
-    </button>
-    <button class="nav-btn" data-tab="More">
-      <span class="nav-icon">⋯</span>
-      <span class="nav-label">More</span>
-    </button>
-  </nav>
-
-  <!-- Toast notifications -->
   <div id="toastContainer"></div>
 
   <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>

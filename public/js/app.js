@@ -1,65 +1,52 @@
-import { formatCurrency, formatTime, showToast, api, statusColor, timeAgo, emojiToLucide } from './utils.js';
-import { FloorPlan } from './floorplan.js';
-import { OrdersPanel } from './orders.js';
-import { MenuPanel } from './menu.js';
-import { KDSPanel } from './kds.js';
-import { MorePanel } from './more.js';
+import { formatCurrency, showToast, api, emojiToLucide } from './utils.js';
+import * as floorplan from './floorplan.js';
+import * as orders from './orders.js';
+import * as kds from './kds.js';
+import * as more from './more.js';
 
-// Global state
-window.APP = {
-  tables: [],
-  orders: [],
-  categories: [],
-  items: [],
-  sections: [],
-  modifiers: [],
-  staff: [],
-  settings: {},
-  activeTab: 'Floor',
-  activeSection: 'all',
-  filterStatus: 'all',
-  editingFloor: false,
-  selectedTable: null,
-  openOrder: null,
-  currentSeat: 1,
-  currentCourse: 1,
-  orderMenuCat: null,
+export let currentTableId = null;
+export let APP_SETTINGS = {};
+
+const PAGE_TITLES = {
+  tables: 'Floor Plan',
+  pos: 'Terminal',
+  orders: 'Orders',
+  kitchen: 'Kitchen Display',
+  staff: 'Staff',
+  settings: 'Settings',
 };
-
-// Sub-modules
-let floorPlan, ordersPanel, menuPanel, kdsPanel, morePanel;
 
 // --- Init ---
 async function init() {
   try {
     await loadSettings();
-    await Promise.all([loadSections(), loadTables(), loadCategories(), loadItems(), loadModifiers(), loadStaff()]);
-    initWebSocket();
+    await Promise.all([
+      floorplan.loadTables(),
+      orders.loadMenu(),
+      loadStaff(),
+    ]);
+
     initClock();
     initNavigation();
-    initFilters();
-    initSectionTabs();
+    initWebSocket();
 
-    floorPlan = new FloorPlan();
-    ordersPanel = new OrdersPanel();
-    menuPanel = new MenuPanel();
-    kdsPanel = new KDSPanel();
-    morePanel = new MorePanel();
+    switchTab('tables');
+    kds.init();
 
-    floorPlan.render();
-    updateStatusBar();
-    await loadActiveOrders();
-
-    // Check user session for header
+    // Session
     try {
       const me = await api('/auth/me');
-      document.getElementById('currentUser').textContent = me.user?.name || '';
+      const el = document.getElementById('currentUser');
+      if (el) el.textContent = me.user?.name || '';
     } catch {}
 
-    document.getElementById('logoutBtn').addEventListener('click', async () => {
-      await api('/auth/logout', { method: 'POST' });
-      window.location.href = '/login';
-    });
+    const logoutBtn = document.getElementById('logoutBtn');
+    if (logoutBtn) {
+      logoutBtn.addEventListener('click', async () => {
+        await api('/auth/logout', { method: 'POST' });
+        window.location.href = '/login';
+      });
+    }
 
     console.log('TableFlow POS initialized');
   } catch (err) {
@@ -68,129 +55,58 @@ async function init() {
   }
 }
 
-// --- Data Loading ---
+// --- Settings ---
 async function loadSettings() {
-  window.APP.settings = await api('/settings');
-  window.APP_SETTINGS = {};
-  for (const [k, v] of Object.entries(window.APP.settings)) {
-    try { window.APP_SETTINGS[k] = JSON.parse(v); } catch { window.APP_SETTINGS[k] = v; }
+  const settings = await api('/settings');
+  APP_SETTINGS = {};
+  for (const [k, v] of Object.entries(settings)) {
+    try { APP_SETTINGS[k] = JSON.parse(v); } catch { APP_SETTINGS[k] = v; }
   }
 }
 
-async function loadSections() {
-  window.APP.sections = await api('/sections');
-  renderSectionTabs();
-}
-
-async function loadTables() {
-  window.APP.tables = await api('/tables');
-  if (floorPlan) floorPlan.render();
-  updateStatusBar();
-}
-
-async function loadCategories() {
-  window.APP.categories = await api('/menu/categories');
-}
-
-async function loadItems() {
-  window.APP.items = await api('/menu/items');
-}
-
-async function loadModifiers() {
-  window.APP.modifiers = await api('/menu/modifiers');
-}
-
 async function loadStaff() {
-  window.APP.staff = await api('/staff');
-}
-
-async function loadActiveOrders() {
-  window.APP.orders = await api('/orders?status=open,fired');
-  if (ordersPanel) ordersPanel.render();
+  // kept for future use
 }
 
 // --- Clock ---
 function initClock() {
   const el = document.getElementById('currentTime');
+  if (!el) return;
   function tick() {
-    const now = new Date();
-    el.textContent = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    el.textContent = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   }
   tick();
-  setInterval(tick, 10000);
+  setInterval(tick, 1000);
 }
 
 // --- Navigation ---
 function initNavigation() {
-  document.querySelectorAll('.nav-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const tab = btn.dataset.tab;
-      switchTab(tab);
-    });
+  document.querySelectorAll('.sidebar-item[data-tab]').forEach(btn => {
+    btn.addEventListener('click', () => switchTab(btn.dataset.tab));
   });
 }
 
-function switchTab(tab) {
-  window.APP.activeTab = tab;
-  document.querySelectorAll('.nav-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
-  document.querySelectorAll('.tab-content').forEach(t => t.classList.toggle('active', t.id === `tab${tab}`));
+export function switchTab(name) {
+  document.querySelectorAll('.sidebar-item').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
 
-  // Show floor-plan controls only on Floor tab
-  const isFloor = tab === 'Floor';
-  document.getElementById('statusBar').querySelector('.status-filters').style.display = isFloor ? '' : 'none';
-  document.getElementById('sectionTabs').style.display = isFloor ? '' : 'none';
+  const sidebarItem = document.querySelector(`.sidebar-item[data-tab="${name}"]`);
+  if (sidebarItem) sidebarItem.classList.add('active');
 
-  if (tab === 'Floor' && floorPlan) floorPlan.render();
-  if (tab === 'Orders' && ordersPanel) ordersPanel.render();
-  if (tab === 'Menu' && menuPanel) menuPanel.render();
-  if (tab === 'Kitchen') kdsPanel?.load();
-}
+  const tabId = 'tab' + name.charAt(0).toUpperCase() + name.slice(1);
+  const tabEl = document.getElementById(tabId);
+  if (tabEl) tabEl.classList.add('active');
 
-// --- Filters ---
-function initFilters() {
-  document.querySelectorAll('.filter-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
-      window.APP.filterStatus = btn.dataset.filter;
-      if (floorPlan) floorPlan.render();
-    });
-  });
-}
+  const titleEl = document.getElementById('pageTitle');
+  if (titleEl) titleEl.textContent = PAGE_TITLES[name] || name;
 
-// --- Section Tabs ---
-function initSectionTabs() {
-  renderSectionTabs();
-  document.getElementById('sectionTabs').addEventListener('click', (e) => {
-    const btn = e.target.closest('.section-tab');
-    if (!btn) return;
-    document.querySelectorAll('.section-tab').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
-    window.APP.activeSection = btn.dataset.section;
-    if (floorPlan) floorPlan.render();
-  });
-}
+  if (name === 'tables') floorplan.renderTables();
+  if (name === 'orders') orders.refresh();
+  if (name === 'kitchen') kds.refresh();
+  if (name === 'staff') more.renderStaff();
+  if (name === 'settings') more.renderSettings();
 
-function renderSectionTabs() {
-  const container = document.getElementById('sectionTabs');
-  const sections = window.APP.sections;
-  let html = `<button class="section-tab ${window.APP.activeSection === 'all' ? 'active' : ''}" data-section="all">All Sections</button>`;
-  for (const s of sections) {
-    html += `<button class="section-tab ${window.APP.activeSection == s.id ? 'active' : ''}" data-section="${s.id}">${emojiToLucide(s.icon)} ${s.name}</button>`;
-  }
-  container.innerHTML = html;
   if (typeof lucide !== 'undefined') lucide.createIcons();
-}
-
-// --- Status Bar ---
-function updateStatusBar() {
-  const tables = window.APP.tables;
-  const occupied = tables.filter(t => t.status === 'occupied').length;
-  const available = tables.filter(t => t.status === 'available').length;
-  const total = tables.length;
-  document.getElementById('statusOccupied').textContent = `${occupied}/${total} occupied`;
-  document.getElementById('statusAvailable').textContent = `${available} available`;
-  document.getElementById('statusRevenue').textContent = `${formatCurrency(0)} today`;
 }
 
 // --- WebSocket ---
@@ -203,12 +119,14 @@ function initWebSocket() {
     ws = new WebSocket(`${proto}//${location.host}/ws`);
 
     ws.onopen = () => {
-      document.getElementById('connectionStatus').className = 'ws-status ws-connected';
+      const el = document.getElementById('connectionStatus');
+      if (el) el.className = 'ws-status ws-connected';
       console.log('WebSocket connected');
     };
 
     ws.onclose = () => {
-      document.getElementById('connectionStatus').className = 'ws-status ws-disconnected';
+      const el = document.getElementById('connectionStatus');
+      if (el) el.className = 'ws-status ws-disconnected';
       reconnectTimer = setTimeout(connect, 3000);
     };
 
@@ -227,34 +145,18 @@ function initWebSocket() {
   connect();
 }
 
-async function handleWSMessage(type, payload) {
+function handleWSMessage(type, payload) {
   switch (type) {
-    case 'tables':
-      await loadTables();
+    case 'table_update':
+      floorplan.renderTables();
       break;
-    case 'orders':
-      if (payload?.action === 'create' || payload?.action === 'closed') {
-        await loadActiveOrders();
-      }
-      if (window.APP.openOrder?.id === payload?.orderId) {
-        await ordersPanel.reloadOrder();
-      }
-      ordersPanel?.render();
-      break;
-    case 'kds':
-      if (window.APP.activeTab === 'Kitchen') kdsPanel?.load();
-      break;
-    case 'menu':
-      await Promise.all([loadCategories(), loadItems(), loadModifiers()]);
-      if (menuPanel) menuPanel.render();
-      break;
-    case 'reservations':
-    case 'waitlist':
-      morePanel?.loadReservations();
-      morePanel?.loadWaitlist();
+    case 'order_update':
+    case 'kds_refresh':
+      kds.refresh();
+      orders.refresh();
       break;
     case 'notification':
-      showToast(payload.message || payload, payload.type || 'info');
+      showToast(payload?.message || payload, payload?.type || 'info');
       break;
   }
 }
