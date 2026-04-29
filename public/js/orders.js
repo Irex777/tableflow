@@ -101,14 +101,7 @@ async function loadOrderForCurrentTable() {
   try {
     const orders = await loadActiveOrders();
     const existing = orders.find(o => o.table_id === tableId);
-    if (existing) {
-      currentOrder = existing;
-    } else {
-      const table = tables.find(t => t.id === tableId);
-      if (table) {
-        currentOrder = await createOrder(tableId, table.seats || 1);
-      }
-    }
+    currentOrder = existing || null;
   } catch (err) {
     console.error('Error loading order for table:', err);
   }
@@ -359,8 +352,18 @@ function renderActions() {
 
 async function addItemToOrder(itemId) {
   if (!currentOrder) {
-    showToast('No active order — select a table first', 'error');
-    return;
+    const tableId = parseInt(window.currentTableId);
+    if (!tableId) {
+      showToast('Select a table first', 'error');
+      return;
+    }
+    const table = tables.find(t => t.id === tableId);
+    if (!table) {
+      showToast('Table not found', 'error');
+      return;
+    }
+    currentOrder = await createOrder(tableId, table.seats || 1);
+    if (!currentOrder) return;
   }
 
   try {
