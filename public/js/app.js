@@ -24,6 +24,7 @@ async function init() {
       floorplan.loadTables(),
       orders.loadMenu(),
       loadStaff(),
+      loadSections(),
     ]);
 
     initClock();
@@ -68,6 +69,13 @@ async function loadStaff() {
   // kept for future use
 }
 
+async function loadSections() {
+  try {
+    const data = await api("/sections");
+    if (data && data.length) floorplan.setSections(data);
+  } catch (err) { console.error("Failed to load sections:", err); }
+}
+
 // --- Clock ---
 function initClock() {
   const el = document.getElementById('currentTime');
@@ -101,7 +109,7 @@ export function switchTab(name) {
   if (titleEl) titleEl.textContent = PAGE_TITLES[name] || name;
 
   if (name === 'tables') floorplan.renderTables();
-  if (name === 'orders') orders.refresh();
+  if (name === 'orders') { orders.refresh(); orders.renderOrdersList?.(); }
   if (name === 'kitchen') kds.refresh();
   if (name === 'staff') more.renderStaff();
   if (name === 'settings') more.renderSettings();
@@ -154,6 +162,7 @@ function handleWSMessage(type, payload) {
     case 'kds_refresh':
       kds.refresh();
       orders.refresh();
+      orders.renderOrdersList?.();
       break;
     case 'notification':
       showToast(payload?.message || payload, payload?.type || 'info');

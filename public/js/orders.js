@@ -88,6 +88,7 @@ export async function refresh() {
   renderMenuItems();
   renderTicket();
   bindSearch();
+  await renderOrdersList();
 }
 
 async function loadOrderForCurrentTable() {
@@ -561,5 +562,134 @@ async function processPayment(method) {
     }
   } catch (err) {
     showToast(err.message, 'error');
+  }
+}
+
+export async function renderOrdersList() {
+  const container = document.getElementById("ordersList");
+  const countEl = document.getElementById("ordersCount");
+  if (!container) return;
+  try {
+    const orders = await api("/orders?status=open,fired");
+    if (countEl) countEl.textContent = orders.length + " order" + (orders.length !== 1 ? "s" : "");
+    if (!orders.length) {
+      container.innerHTML = "<div style=\"text-align:center;padding:60px;color:#94a3b8\"><p>No active orders</p></div>";
+      return;
+    }
+    container.innerHTML = orders.map(o => {
+      const items = (o.items || []).filter(i => i.status !== "voided");
+      const preview = items.slice(0, 5).map(i => i.quantity + "× " + i.item_name).join(", ");
+      return "<div class=\"order-card\" data-order-id=\"" + o.id + "\">" +
+        "<div class=\"order-card-header\">" +
+          "<div><div class=\"order-card-title\">" + (o.table_name || "?") + "</div>" +
+          "<div class=\"order-card-time\">" + o.order_number + " · " + timeAgo(o.opened_at) + "</div></div>" +
+          "<span class=\"order-card-status status-" + o.status + "\">" + statusLabel(o.status) + "</span>" +
+        "</div>" +
+        "<div class=\"order-card-items\">" + preview + "</div>" +
+        "<div class=\"order-card-footer\">" +
+          "<span>" + (o.covers || 1) + " guest" + ((o.covers||1)!==1?"s":"") + "</span>" +
+          "<span class=\"order-card-total\">" + formatCurrency(o.total) + "</span>" +
+        "</div></div>";
+    }).join("");
+    container.querySelectorAll(".order-card").forEach(card => {
+      card.addEventListener("click", () => openOrderDetail(parseInt(card.dataset.orderId)));
+    });
+  } catch (err) {
+    console.error("Failed to load orders list:", err);
+  }
+}
+
+export async function openOrderDetail(orderId) {
+  const panel = document.getElementById("orderDetailPanel");
+  const content = document.getElementById("orderDetailContent");
+  if (!panel || !content) return;
+  try {
+    const orders = await api("/orders?status=open,fired,completed");
+    const order = orders.find(o => o.id === orderId);
+    if (!order) { showToast("Order not found", "error"); return; }
+    let detailSeat = 1;
+    let detailCourse = 1;
+    const maxSeat = Math.max(order.covers || 1, ...(order.items||[]).map(i => i.seat || 1));
+    function render() {
+      const items = (order.items || []).filter(i => i.status !== "voided");
+      const pending = items.filter(i => i.status === "pending");
+      content.innerHTML =
+        "<div class=\"order-detail-header\">" +
+          "<div class=\"order-detail-header-left\">" +
+            "<span class=\"order-detail-table-name\">" + (order.table_name||"?") + "</span>" +
+            "<span class=\"order-card-status status-" + order.status + "\">" + statusLabel(order.status) + "</span>" +
+            "<span style=\"font-size:12px;color:#94a3b8\">" + timeAgo(order.opened_at) + "</span>" +
+          "</div>" +
+          "<button id=\"detailClose\" style=\"background:none;border:none;cursor:pointer;color:#64748b\"><i data-lucide=\"x\" style=\"width:20px;height:20px\"></i></button>" +
+        "</div>" +
+        "<div class=\"order-detail-body\">" +
+          "<div style=\"margin-bottom:12px;display:flex;gap:6px;flex-wrap:wrap\">" +
+            Array.from({length:maxSeat},(_,i) => "<button class=\"seat-btn " + (detailSeat===(i+1)?"active":"") + "\" data-seat=\"" + (i+1) + "\">Seat " + (i+1) + "</button>").join("") +
+          "</div>" +
+          "<div style=\"margin-bottom:16px;display:flex;gap:6px\">" +
+            "<button class=\"course-btn " + (detailCourse===1?"active":"") + "\" data-course=\"1\">Starter</button>" +
+            "<button class=\"course-btn " + (detailCourse===2?"active":"") + "\" data-course=\"2\">Main</button>" +
+            "<button class=\"course-btn " + (detailCourse===3?"active":"") + "\" data-course=\"3\">Dessert</button>" +
+          "</div>" +
+          "<div>" +
+            items.map(item =>
+              "<div class=\"order-item\">" +
+                "<span class=\"order-item-seat\">S" + (item.seat||1) + "</span>" +
+                "<span class=\"order-item-name\">" + item.quantity + "× " + item.item_name + "</span>" +
+                "<span class=\"order-item-price\">" + formatCurrency(item.unit_price * item.quantity) + "</span>" +
+                (item.status==="pending" ? "<button data-void-item=\"" + item.id + "\" style=\"background:none;border:none;cursor:pointer;color:#ef4444\"><i data-lucide=\"x\" style=\"width:14px;height:14px\"></i></button>" : "") +
+              "</div>"
+            ).join("") +
+          "</div>" +
+        "</div>" +
+        "<div class=\"order-detail-footer\">" +
+          "<div style=\"display:flex;justify-content:space-between;margin-bottom:8px;font-size:14px\"><span>Subtotal</span><span>" + formatCurrency(order.subtotal) + "</span></div>" +
+          "<div style=\"display:flex;justify-content:space-between;margin-bottom:8px;font-size:14px\"><span>Tax</span><span>" + formatCurrency(order.tax) + "</span></div>" +
+          "<div style=\"display:flex;justify-content:space-between;margin-bottom:12px;font-size:16px;font-weight:700\"><span>Total</span><span>" + formatCurrency(order.total) + "</span></div>" +
+          (order.total_paid > 0 ? "<div style=\"display:flex;justify-content:space-between;margin-bottom:12px;font-size:14px;color:#10b981\"><span>Paid</span><span>" + formatCurrency(order.total_paid) + "</span></div>" : "") +
+          "<div style=\"display:flex;gap:8px\">" +
+            (pending.length > 0 ? "<button id=\"detailFire\" class=\"btn-fire\" style=\"flex:1\"><i data-lucide=\"flame\" style=\"width:16px;height:16px;vertical-align:middle\"></i> Fire (" + pending.length + ")</button>" : "") +
+            "<button id=\"detailPay\" class=\"btn-pay\" style=\"flex:1\"><i data-lucide=\"credit-card\" style=\"width:16px;height:16px;vertical-align:middle\"></i> Pay</button>" +
+          "</div>" +
+        "</div>";
+      if (window.lucide) window.lucide.createIcons();
+      content.querySelectorAll(".seat-btn").forEach(btn => {
+        btn.addEventListener("click", () => { detailSeat = parseInt(btn.dataset.seat); render(); });
+      });
+      content.querySelectorAll(".course-btn").forEach(btn => {
+        btn.addEventListener("click", () => { detailCourse = parseInt(btn.dataset.course); render(); });
+      });
+      document.getElementById("detailClose")?.addEventListener("click", () => { panel.style.display = "none"; });
+      content.querySelectorAll("[data-void-item]").forEach(btn => {
+        btn.addEventListener("click", async () => {
+          try {
+            await api("/orders/" + orderId + "/items/" + btn.dataset.voidItem, { method: "PATCH", body: JSON.stringify({ status: "voided", void_reason: "Voided from detail" }) });
+            const fresh = await api("/orders?status=open,fired,completed");
+            const updated = fresh.find(o => o.id === orderId);
+            if (updated) { Object.assign(order, updated); }
+            render();
+          } catch (err) { showToast(err.message, "error"); }
+        });
+      });
+      document.getElementById("detailFire")?.addEventListener("click", async () => {
+        try {
+          await api("/orders/" + orderId + "/fire", { method: "POST" });
+          showToast("Order fired to kitchen!", "success");
+          const fresh = await api("/orders?status=open,fired,completed");
+          const updated = fresh.find(o => o.id === orderId);
+          if (updated) Object.assign(order, updated);
+          render();
+        } catch (err) { showToast(err.message, "error"); }
+      });
+      document.getElementById("detailPay")?.addEventListener("click", () => {
+        currentOrder = order;
+        openPaymentModal();
+      });
+    }
+    panel.style.display = "flex";
+    render();
+    document.getElementById("orderDetailBackdrop")?.addEventListener("click", () => { panel.style.display = "none"; });
+  } catch (err) {
+    showToast("Failed to load order details", "error");
   }
 }

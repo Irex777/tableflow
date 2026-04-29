@@ -1,7 +1,10 @@
 import { api, statusColor, statusLabel, formatCurrency } from './utils.js';
 
 let tables = [];
+let sections = [];
 let activeOrders = {};
+let activeSection = 'all';
+let activeStatus = 'all';
 
 export async function loadTables() {
   const data = await api('/tables');
@@ -11,10 +14,48 @@ export async function loadTables() {
 
 export function setActiveOrders(orders) { activeOrders = orders || {}; }
 
+export function setSections(data) { sections = data || []; }
+
+function renderSectionTabs() {
+  const container = document.getElementById('sectionTabs');
+  if (!container) return;
+  let html = `<button class="section-tab ${activeSection === 'all' ? 'active' : ''}" data-section="all">All Sections</button>`;
+  sections.forEach(section => {
+    html += `<button class="section-tab ${activeSection == section.id ? 'active' : ''}" data-section="${section.id}">${section.name}</button>`;
+  });
+  container.innerHTML = html;
+  container.querySelectorAll('.section-tab').forEach(btn => {
+    btn.addEventListener('click', () => {
+      activeSection = btn.dataset.section;
+      renderTables();
+    });
+  });
+}
+
+function renderStatusFilters() {
+  const container = document.getElementById('statusFilters');
+  if (!container) return;
+  const statuses = ['all', 'available', 'occupied', 'reserved', 'dirty', 'blocked'];
+  const labels = ['All', 'Available', 'Occupied', 'Reserved', 'Needs Cleaning', 'Blocked'];
+  container.innerHTML = statuses.map((s, i) => {
+    const dot = s !== 'all' ? `<span class="status-dot" style="background:${statusColor(s)}"></span>` : '';
+    return `<button class="status-filter-btn ${activeStatus === s ? 'active' : ''}" data-status="${s}">${dot}${labels[i]}</button>`;
+  }).join('');
+  container.querySelectorAll('.status-filter-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      activeStatus = btn.dataset.status;
+      renderTables();
+    });
+  });
+}
+
 export function renderTables() {
   const grid = document.getElementById('tablesGrid');
   const legend = document.getElementById('tablesLegend');
   if (!grid) return;
+
+  renderSectionTabs();
+  renderStatusFilters();
 
   if (legend) {
     legend.innerHTML = ['available','occupied','reserved','dirty','blocked'].map(s =>
@@ -22,7 +63,11 @@ export function renderTables() {
     ).join('');
   }
 
-  grid.innerHTML = tables.map(t => {
+  let filtered = tables;
+  if (activeSection !== 'all') filtered = filtered.filter(t => t.section_id == activeSection);
+  if (activeStatus !== 'all') filtered = filtered.filter(t => t.status === activeStatus);
+
+  grid.innerHTML = filtered.map(t => {
     const order = activeOrders[t.id];
     const total = order ? order.items.reduce((s,i) => s + i.price * i.qty, 0) : 0;
     return `<div class="table-card" data-status="${t.status}" data-id="${t.id}">
@@ -38,13 +83,42 @@ export function renderTables() {
       window.currentTableId = card.dataset.id;
       import('./app.js').then(m => m.switchTab('pos'));
     });
+
+    card.addEventListener('contextmenu', (e) => {
+      e.preventDefault();
+      const menu = document.getElementById('tableContextMenu');
+      if (!menu) return;
+      menu.style.display = 'block';
+      menu.style.left = e.clientX + 'px';
+      menu.style.top = e.clientY + 'px';
+      menu.dataset.tableId = card.dataset.id;
+    });
   });
+
+  document.addEventListener('click', () => {
+    const menu = document.getElementById('tableContextMenu');
+    if (menu) menu.style.display = 'none';
+  });
+
+  const contextMenu = document.getElementById('tableContextMenu');
+  if (contextMenu) {
+    contextMenu.querySelectorAll('[data-set-status]').forEach(item => {
+      item.addEventListener('click', async () => {
+        const id = contextMenu.dataset.tableId;
+        const newStatus = item.dataset.setStatus;
+        await api(`/tables/${id}`, { method: 'PATCH', body: JSON.stringify({ status: newStatus }) });
+        tables = tables.map(t => t.id == id ? { ...t, status: newStatus } : t);
+        contextMenu.style.display = 'none';
+        renderTables();
+      });
+    });
+  }
 
   if (window.lucide) window.lucide.createIcons();
 }
 
 export async function updateTableStatus(id, status) {
-  await api(`/tables/${id}/status`, { method: 'PUT', body: JSON.stringify({ status }) });
+  await api(`/tables/${id}`, { method: 'PATCH', body: JSON.stringify({ status }) });
   tables = tables.map(t => t.id === id ? { ...t, status } : t);
   renderTables();
 }

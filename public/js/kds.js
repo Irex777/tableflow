@@ -4,7 +4,7 @@ let timerInterval = null;
 
 export async function refresh() {
   try {
-    const orders = await api('/orders?status=kitchen');
+    const orders = await api('/kds/orders');
     render(orders);
   } catch (err) {
     console.error('Failed to load kitchen orders:', err);
@@ -60,10 +60,7 @@ function render(orders) {
   board.querySelectorAll('.kds-bump-btn').forEach(btn => {
     btn.addEventListener('click', async () => {
       try {
-        await api(`/orders/${btn.dataset.orderId}/status`, {
-          method: 'PUT',
-          body: JSON.stringify({ itemId: btn.dataset.itemId, status: 'completed' }),
-        });
+        await api(`/kds/bump/${btn.dataset.itemId}`, { method: 'POST' });
         refresh();
       } catch (err) {
         console.error('Bump failed:', err);
