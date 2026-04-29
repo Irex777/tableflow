@@ -109,6 +109,7 @@ export function switchTab(name) {
   if (titleEl) titleEl.textContent = PAGE_TITLES[name] || name;
 
   if (name === 'tables') floorplan.renderTables();
+  if (name === 'pos') orders.refresh();
   if (name === 'orders') { orders.refresh(); orders.renderOrdersList?.(); }
   if (name === 'kitchen') kds.refresh();
   if (name === 'staff') more.renderStaff();

@@ -57,6 +57,20 @@ export function renderTables() {
   renderSectionTabs();
   renderStatusFilters();
 
+  const contextMenu = document.getElementById("tableContextMenu");
+  if (contextMenu) {
+    const statuses = [
+      { value: "available", label: "Available" },
+      { value: "occupied", label: "Occupied" },
+      { value: "reserved", label: "Reserved" },
+      { value: "dirty", label: "Needs Cleaning" },
+      { value: "blocked", label: "Blocked" },
+    ];
+    contextMenu.innerHTML = statuses.map(s =>
+      `<button class="ctx-menu-item" data-set-status="${s.value}"><span class="status-dot" style="background:${statusColor(s.value)}"></span>${s.label}</button>`
+    ).join("");
+  }
+
   if (legend) {
     legend.innerHTML = ['available','occupied','reserved','dirty','blocked'].map(s =>
       `<div class="legend-item"><div class="legend-dot" style="background:${statusColor(s)}"></div><span>${statusLabel(s)}</span></div>`
